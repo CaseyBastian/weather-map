@@ -1,0 +1,17 @@
+<div class="sidebar" [class.hidden]="!sidebarVisible">
+    <mat-icon class="toggle-button" (click)="toggleSidebar()">menu</mat-icon>
+    <div class="category-header"><b>Weather Offices</b></div>
+    <ul>
+        <li *ngFor="let layer of layers$ | async">
+            <input type="checkbox" [checked]="layer.visible" (change)="toggleLayerVisibility(layer.name)" />
+            {{ layer.name }}
+        </li>
+    </ul>
+    <div class="category-header"><b>Weather Alerts</b></div>
+    <ul>
+        <!-- <li *ngFor="let layer of layers$ | async">
+            <input type="checkbox" [checked]="layer.visible" (change)="toggleLayerVisibility(layer.name)" />
+            {{ layer.name }}
+        </li> -->
+    </ul>
+</div>

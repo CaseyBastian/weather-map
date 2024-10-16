@@ -1,0 +1,20 @@
+{
+  "/weather": {
+    "target": "https://api.weather.gov",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/weather": ""
+    }
+  },
+  "/noaa": {
+    "target": "https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/noaa": ""
+    }
+  }
+}
