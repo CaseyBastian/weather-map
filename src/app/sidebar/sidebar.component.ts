@@ -1,8 +1,15 @@
 import { Component, OnInit } from '@angular/core';
-import { WeatherLayer, WeatherLayersService } from '../services/weather-layers.service';
 import { Observable } from 'rxjs';
 import { CommonModule} from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+
+import { 
+  WeatherLayersService,
+  SourceLayerType,
+  EventLayer,
+  ForecastLayer
+ } from '../services/weather-layers.service';
+
 
 @Component({
   selector: 'app-sidebar',
@@ -12,17 +19,27 @@ import { MatIconModule } from '@angular/material/icon';
   imports: [CommonModule, MatIconModule]
 })
 export class SidebarComponent implements OnInit {
-  layers$!: Observable<WeatherLayer[]>;
+  forecastLayers$!: Observable<ForecastLayer[]>;
+  eventLayers$!: Observable<EventLayer[]>;
+  eventLayers: EventLayer[] = [];
   sidebarVisible: boolean = true;
+  sourceLayerType = SourceLayerType;
+  hasEvents: boolean = false;
 
   constructor(private weatherLayerService: WeatherLayersService){}
 
   ngOnInit(): void {
-    this.layers$ = this.weatherLayerService.layers$;
+    this.forecastLayers$ = this.weatherLayerService.forecastLayers$;
+    this.eventLayers$ = this.weatherLayerService.eventLayers$;
+
+    this.eventLayers$.subscribe(eventLayers => {
+      this.hasEvents = this.weatherLayerService.hasEvents();
+      this.eventLayers = [...eventLayers].sort((a,b)=> a.name.localeCompare(b.name));
+    });
   }
 
-  toggleLayerVisibility(layerName: string): void {
-    this.weatherLayerService.toggleLayerVisibility(layerName);
+  toggleLayerVisibility(sourceType: SourceLayerType, layerName: string): void {
+    this.weatherLayerService.toggleLayerVisibility(sourceType, layerName);
   }
 
   toggleSidebar() {

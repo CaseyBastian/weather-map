@@ -1,22 +1,30 @@
-import { Component, AfterViewInit, HostListener } from '@angular/core';
+import { Component, AfterViewInit, HostListener, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { MatIconModule } from '@angular/material/icon';
+import { Subject, takeUntil } from 'rxjs';
 
-import Map from 'ol/Map';
+import { Map as OLMap } from 'ol';
 import View from 'ol/View';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
-import Feature from 'ol/Feature';
+import Feature, { FeatureLike } from 'ol/Feature';
 import { fromLonLat } from 'ol/proj';
 import TileLayer from 'ol/layer/Tile';
 import { OSM } from 'ol/source';
 import TileWMS from 'ol/source/TileWMS';
-import { lastValueFrom } from 'rxjs';
 import { GeoJSON } from 'ol/format';
-
-import { WeatherLayersService, WeatherLayer, AlertApiResponse, GridPointResponse } from '../services/weather-layers.service';
-import { MatIconModule } from '@angular/material/icon';
 import Overlay from 'ol/Overlay';
+import { Style, Fill, Stroke } from 'ol/style';
+
+import {
+  WeatherLayersService,
+  SourceLayerType,
+  EventLayer,
+  ForecastLayer,
+  AlertApiResponse,
+  GridPointResponse
+} from '../services/weather-layers.service';
+import { L } from '@angular/cdk/keycodes';
 
 @Component({
   selector: 'app-weather-map',
@@ -25,31 +33,53 @@ import Overlay from 'ol/Overlay';
   styleUrl: './weather-map.component.scss',
   imports: [CommonModule, MatIconModule]
 })
-export class WeatherMapComponent implements AfterViewInit {
+export class WeatherMapComponent implements AfterViewInit, OnDestroy {
+  private destroy$ = new Subject<void>();
 
-  private map!: Map;
+  private map!: OLMap;
   private overlay!: Overlay;
   private popupOpen: boolean = false;
   private USCenterLongLat: number[] = [-98.5795, 39.8283];
+  private reloadIntervalId: any;
+  private forecastVectorLayerMap: Map<string, VectorLayer> = new Map();
+  private eventVectorLayerMap: Map<string, VectorLayer> = new Map();
+  private eventVisibilityState: Map<string, boolean> = new Map();
+  private forecastVisibilityState: Map<string, boolean> = new Map();
 
-  weatherEvents: any[] = [];
-  forecasts: any[] = [];
-
-  constructor(private weatherLayersService: WeatherLayersService, private http: HttpClient) { }
+  constructor(private weatherLayersService: WeatherLayersService) { }
 
   ngAfterViewInit(): void {
+    const closer = document.getElementById('popup-close');
+
     this.initializeMap();
-    this.weatherLayersService.layers$.subscribe(layers => { this.updateForecastLayers(); });
     this.loadForecastLayers();
     this.loadEventLayers();
+    this.addRadarOverlayLayer();
     this.initOverlay();
 
-    const closer = document.getElementById('popup-close');
+    this.weatherLayersService.eventLayers$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(eventLayers => { this.toggleEventLayers(eventLayers); });
+    this.weatherLayersService.forecastLayers$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(forecastLayers => { this.toggleForecastLayers(forecastLayers); });
+
+    this.reloadIntervalId = setInterval(() => {
+      console.log('Interval Refresh');
+    }, 300000);
+
     closer?.addEventListener('click', () => {
       this.closePopup();
     });
+  }
 
-    this.addRadarOverlayLayer();
+  ngOnDestroy(): void {
+    if (this.reloadIntervalId) {
+      clearInterval(this.reloadIntervalId);
+    }
+
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   private initializeMap(): void {
@@ -57,7 +87,7 @@ export class WeatherMapComponent implements AfterViewInit {
       source: new OSM()
     });
 
-    this.map = new Map({
+    this.map = new OLMap({
       target: 'weather-map',
       layers: [osmLayer],
       view: new View({
@@ -108,72 +138,137 @@ export class WeatherMapComponent implements AfterViewInit {
     }
   }
 
-  private addWeatherLayer(source: string, features: Feature[], layer?: WeatherLayer): void {
-    const vectorSource = new VectorSource();
-    const vectorLayer = new VectorLayer();
+  private addForecastLayer(layerName: string, features: Feature[], visible: boolean = true): void {
+    const vectorSource = new VectorSource({
+      features: features
+    });
+    let vectorLayer = this.forecastVectorLayerMap.get(layerName);
 
-    vectorSource.addFeatures(features);
-    vectorLayer.setSource(vectorSource);
-    this.map.addLayer(vectorLayer);
-  }
+    if (vectorLayer) {
+      vectorLayer.setVisible(visible);
+    } else {
+      vectorLayer = new VectorLayer({
+        source: vectorSource,
+        visible: visible
+      });
 
-  private async getGridPoint(latitude: number, longitude: number): Promise<{ gridId: string, gridX: number, gridY: number }> {
-    const url = `/weather/points/${latitude},${longitude}`;
-    const response = await lastValueFrom(this.http.get<any>(url));
-    const gridX = response.properties.gridX;
-    const gridY = response.properties.gridY;
-    const gridId = response.properties.gridId;
+      this.map.addLayer(vectorLayer);
+      this.forecastVectorLayerMap.set(layerName, vectorLayer);
+    }
 
-    return { gridId, gridX, gridY };
-  }
-
-  private async fetchForecastData(gridPoint: { gridId: string, gridX: number, gridY: number }): Promise<GridPointResponse | any> {
-    const url = `/weather/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast`;
-    const response = await lastValueFrom(this.http.get(url));
-
-    return response;
+    this.forecastVisibilityState.set(layerName, visible);
   }
 
   private async loadForecastLayers(): Promise<void> {
-    const visibleLayers = this.weatherLayersService.getVisibleLayers();
+    const visibleLayers: ForecastLayer[] = this.weatherLayersService.getVisibleLayers(SourceLayerType.FORECAST) as ForecastLayer[];
 
     for (const visibleLayer of visibleLayers) {
-      const gridPoint = await this.getGridPoint(visibleLayer.latitude, visibleLayer.longitude);
-      const forecastData: GridPointResponse = await this.fetchForecastData(gridPoint);
+      const gridPoint = await this.weatherLayersService.getGridPoint(visibleLayer.latitude, visibleLayer.longitude);
+      const forecastData: GridPointResponse = await this.weatherLayersService.fetchForecastData(gridPoint);
       const geoJSONFormat = new GeoJSON();
       const features = geoJSONFormat.readFeatures(forecastData, { featureProjection: 'EPSG:3857' });
 
-      this.forecasts = forecastData.properties.periods;
-      this.addWeatherLayer('forecast', features, visibleLayer);
+      this.addForecastLayer(visibleLayer.name, features, visibleLayer.visible);
     }
   }
 
-  private async updateForecastLayers(): Promise<void> {
+  private async toggleForecastLayers(forecastLayers: ForecastLayer[]): Promise<void> {
     if (this.map) {
-      this.map.getLayers().forEach((layer) => {
-        if (layer instanceof VectorLayer) {
-          this.map.removeLayer(layer);
+      forecastLayers.forEach(forecastLayer => {
+        const vectorLayer = this.forecastVectorLayerMap.get(forecastLayer.name);
+
+        if(vectorLayer){
+          vectorLayer.setVisible(forecastLayer.visible);
+          this.forecastVisibilityState.set(forecastLayer.name, forecastLayer.visible);
         }
       });
-
-      await this.loadForecastLayers();
     }
-  }
-
-  private async fetchEventData(): Promise<AlertApiResponse | any> {
-    const url = '/weather/alerts/active';
-    const response = await lastValueFrom(this.http.get(url));
-
-    return response;
   }
 
   private async loadEventLayers(): Promise<void> {
-    const eventData: AlertApiResponse = await this.fetchEventData();
+    const eventData: AlertApiResponse = await this.weatherLayersService.fetchEventData();
+
+    this.weatherLayersService.addEventsToSource(eventData);
+    this.createEventLayer(eventData);
+  }
+
+  private createEventLayer(eventData: AlertApiResponse): void {
+    const events = this.weatherLayersService.getEventLayers();
+    const dataFeatures = eventData.features;
+    events.forEach(evt => {
+      const filteredFeatures = dataFeatures.filter(dataFeature => { return evt.name === dataFeature.properties.event; });
+      const newFeatureData = {...eventData, features: filteredFeatures};
+      this.addEventLayer(newFeatureData, evt.name);
+    });
+
+  }
+
+  private addEventLayer(eventData: AlertApiResponse, eventType: string): void {
     const geoJSONFormat = new GeoJSON();
     const features = geoJSONFormat.readFeatures(eventData, { featureProjection: 'EPSG:3857' });
+    const vectorSource = new VectorSource({
+      features: features
+    });
 
-    this.weatherEvents = eventData.features;
-    this.addWeatherLayer('events', features);
+    const vectorLayer = new VectorLayer({
+      source: vectorSource,
+      visible: true,
+      style: (feature) => this.styleEvent(feature)
+    });
+
+    this.map.addLayer(vectorLayer);
+    this.eventVectorLayerMap.set(eventType, vectorLayer);
+    this.eventVisibilityState.set(eventType, true);
+  }
+
+  private async toggleEventLayers(eventLayers: EventLayer[]): Promise<void> {
+    if (this.map) {
+      eventLayers.forEach(eventLayer => {
+        const vectorLayer = this.eventVectorLayerMap.get(eventLayer.name);
+
+        if(vectorLayer){
+          vectorLayer.setVisible(eventLayer.visible);
+          this.eventVisibilityState.set(eventLayer.name, eventLayer.visible);
+        }
+      });
+    }
+  }
+
+  private styleEvent(feature: FeatureLike): Style {
+    const properties = feature.getProperties();
+    const severity = properties['severity'];
+
+    let color;
+
+    switch(severity) {
+      case 'Severe':
+        color = 'rgba(255, 20, 20,';
+        break;
+
+      case 'Moderate':
+        color = 'rgba(255, 80, 0,';
+        break;
+
+      case 'Minor':
+        color = 'rgba(0, 100, 255,';
+        break;
+
+      default:
+        color = 'rgba(0, 100, 255,';
+        break;
+    }
+
+    const style = new Style({
+      fill: new Fill ({
+        color: color + '0.2)'
+      }),
+      stroke: new Stroke ({
+        color: color + '1)',
+        width: 2
+      })
+    });
+
+    return style;
   }
 
   private showOverlay(coords: number[], feature: any): void {
@@ -188,7 +283,7 @@ export class WeatherMapComponent implements AfterViewInit {
         description,
         // effective,
         // ends,
-        // event,
+        event,
         expires,
         headline,
         // status,
@@ -199,6 +294,7 @@ export class WeatherMapComponent implements AfterViewInit {
       } = props;
 
       content = `<p><b>${headline}</b></p>
+                 <p>Event: ${event}</p>
                  <p>Severity: ${severity}</p>
                  <p>Expires: ${expires}</p>
                  <p>${description}</p>`;
@@ -235,12 +331,12 @@ export class WeatherMapComponent implements AfterViewInit {
       },
       serverType: 'geoserver' // Specify the server type if needed
     });
-  
+
     const radarLayer = new TileLayer({
       source: radarSource,
       opacity: 0.6
     });
-  
+
     this.map.addLayer(radarLayer);
   }
 

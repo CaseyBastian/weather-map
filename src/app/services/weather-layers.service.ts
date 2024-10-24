@@ -1,5 +1,8 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, lastValueFrom } from 'rxjs';
+
+import { Feature } from 'ol';
 
 enum FeatureType {
   Feature = "Feature",
@@ -11,7 +14,17 @@ interface Geometry {
   coordinates: number[][][][];
 }
 
-export interface WeatherLayer {
+export enum SourceLayerType {
+  FORECAST = 'forecast',
+  EVENT = 'event'
+}
+
+export interface EventLayer {
+  name: string;
+  visible: boolean;
+}
+
+export interface ForecastLayer {
   name: string;
   visible: boolean;
   latitude: number;
@@ -128,7 +141,9 @@ export interface Period {
   detailedForecast: string;
 }
 
-const wfoLocations: WeatherLayer[] = [
+const eventLayersArr: EventLayer[] = [];
+
+const forecastLayersArr: ForecastLayer[] = [
   { name: "Los Angeles", visible: true, latitude: 34.0522, longitude: -118.2437 },
   { name: "Seattle", visible: true, latitude: 47.6062, longitude: -122.3321 },
   { name: "Minneapolis", visible: true, latitude: 44.9778, longitude: -93.2650 },
@@ -146,22 +161,112 @@ const wfoLocations: WeatherLayer[] = [
   providedIn: 'root'
 })
 export class WeatherLayersService {
-  private layersSource = new BehaviorSubject<WeatherLayer[]>(wfoLocations);
-  
-  layers$ = this.layersSource.asObservable();
+  private forecastLayersSource = new BehaviorSubject<ForecastLayer[]>(forecastLayersArr);
+  private eventLayersSource = new BehaviorSubject<EventLayer[]>(eventLayersArr);
 
-  constructor() { }
+  forecastLayers$ = this.forecastLayersSource.asObservable();
+  eventLayers$ = this.eventLayersSource.asObservable();
 
-  toggleLayerVisibility(layerName: string): void {
-    const layers = this.layersSource.value;
-    const updatedLayers = layers.map(layer =>
-      layer.name === layerName ? { ...layer, visible: !layer.visible } : layer
-    );
+  constructor(private http: HttpClient) { }
 
-    this.layersSource.next(updatedLayers);
+  hasEvents(): boolean {
+    return eventLayersArr.length > 0;
   }
 
-  getVisibleLayers(): WeatherLayer[] {
-    return this.layersSource.value.filter(layer => layer.visible);
+  getEventLayers(): EventLayer[] {
+    return this.eventLayersSource.value;
+  }
+
+  addEventsToSource(eventData: AlertApiResponse): void {
+    if (!eventData?.features) return;
+    
+    const features = eventData.features;
+    const uniqueEvents = new Set<string>();
+    const eventResults = features.filter(feature => {
+      if(!feature.geometry){ return false; }
+      const event = feature.properties.event;
+
+      if (!uniqueEvents.has(event)) {
+        uniqueEvents.add(event);
+        return true;
+      }
+
+      return false;
+    }).map(feature => ({
+      name: feature.properties.event,
+      visible: true
+    }));
+
+    const observedEventLayers = this.eventLayersSource.getValue();
+    const mergedArray = eventResults.map(eventObj => {
+      const eventExists = observedEventLayers.find(eventLayer => eventLayer.name === eventObj.name);
+
+      if (eventExists) {
+        const visible = eventExists.visible ? eventObj.visible : true;
+        return {
+          name: eventObj.name,
+          visible: visible
+        }
+      } else {
+        return eventObj;
+      }
+    });
+
+    const cleanedEventLayers = observedEventLayers.filter(eventLayer =>
+      eventResults.some(eventObj => eventObj.name === eventLayer.name)
+    );
+
+    const finalEventLayers = [
+      ...cleanedEventLayers,
+      ...mergedArray
+    ];
+
+    this.eventLayersSource.next(finalEventLayers);
+  }
+
+  toggleLayerVisibility(sourceType: SourceLayerType, layerName: string): void {
+    if (sourceType === SourceLayerType.FORECAST) {
+      const layers = this.forecastLayersSource.value;
+      const updatedLayers: ForecastLayer[] = layers.map(layer =>
+        layer.name === layerName ? { ...layer, visible: !layer.visible } : layer
+      );
+      this.forecastLayersSource.next(updatedLayers);
+
+    } else if (sourceType === SourceLayerType.EVENT) {
+      const layers = this.eventLayersSource.value;
+      const updatedLayers: EventLayer[] = layers.map(layer =>
+        layer.name === layerName ? { ...layer, visible: !layer.visible } : layer
+      );
+      this.eventLayersSource.next(updatedLayers);
+    }
+  }
+
+  getVisibleLayers(SourceType: SourceLayerType): ForecastLayer[] | EventLayer[] {
+    const values = SourceType === SourceLayerType.EVENT ? this.eventLayersSource.value : this.forecastLayersSource.value;
+    return values.filter(layer => layer.visible);
+  }
+
+  async getGridPoint(latitude: number, longitude: number): Promise<{ gridId: string, gridX: number, gridY: number }> {
+    const url = `/weather/points/${latitude},${longitude}`;
+    const response = await lastValueFrom(this.http.get<any>(url));
+    const gridX = response.properties.gridX;
+    const gridY = response.properties.gridY;
+    const gridId = response.properties.gridId;
+
+    return { gridId, gridX, gridY };
+  }
+
+  async fetchForecastData(gridPoint: { gridId: string, gridX: number, gridY: number }): Promise<GridPointResponse | any> {
+    const url = `/weather/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast`;
+    const response = await lastValueFrom(this.http.get(url));
+
+    return response;
+  }
+
+  async fetchEventData(): Promise<AlertApiResponse | any> {
+    const url = '/weather/alerts/active';
+    const response = await lastValueFrom(this.http.get(url));
+
+    return response;
   }
 }
