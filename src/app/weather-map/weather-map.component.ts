@@ -182,7 +182,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       this.renderer.addClass(placeIcon, 'material-icons');
       this.renderer.appendChild(iconElement, placeIcon);
 
-      this.renderer.listen(iconElement, 'mouseover', (evt) => {
+      this.renderer.listen(iconElement, 'click', (evt) => {
         const features = this.getInfoPanelFeature(layerName)[0];
   
         if (features) {

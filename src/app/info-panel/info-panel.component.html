@@ -20,7 +20,7 @@
                         <div class="weather-row">Precipitation: {{ getCurrentForecast.probabilityOfPrecipitation.value }}%</div>
                     </div>
                 </div>
-                <div>Hourly Forecast</div>
+                <p><b>Hourly Forecast</b></p>
                 <div class="today-hourly-weather hourly-container">
                     <div class="hourly-panel" *ngFor="let hour of getHourlyForecast">
                         <div class="time"> {{getTime(hour.startTime)}}:00 </div>
@@ -32,7 +32,7 @@
                     </div>
                 </div>
             </div>
-            <p> Daily Forecast </p>
+            <p><b>Daily Forecast</b></p>
             <div class="daily-forecast">
                 <app-weather-card 
                     *ngFor="let period of getDailyForecast"
