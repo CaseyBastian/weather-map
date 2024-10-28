@@ -1,7 +1,7 @@
 {
   "/weather": {
     "target": "https://api.weather.gov",
-    "secure": true,
+    "secure": false,
     "changeOrigin": true,
     "logLevel": "debug",
     "pathRewrite": {
@@ -10,7 +10,7 @@
   },
   "/noaa": {
     "target": "https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows",
-    "secure": true,
+    "secure": false,
     "changeOrigin": true,
     "logLevel": "debug",
     "pathRewrite": {
@@ -19,7 +19,7 @@
   },
   "/rvTileCache": {
     "target": "https://tilecache.rainviewer.com",
-    "secure": true,
+    "secure": false,
     "changeOrigin": true,
     "logLevel": "debug",
     "pathRewrite": {
@@ -28,7 +28,7 @@
   },
   "/rvAPI": {
     "target": "https://api.rainviewer.com/public/weather-maps.json",
-    "secure": true,
+    "secure": false,
     "changeOrigin": true,
     "logLevel": "debug",
     "pathRewrite": {
