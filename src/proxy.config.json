@@ -17,13 +17,22 @@
       "^/noaa": ""
     }
   },
-  "/historical": {
-    "target": "https://www.ncei.noaa.gov/cdo-web/api/v2",
+  "/rvTileCache": {
+    "target": "https://tilecache.rainviewer.com",
     "secure": true,
     "changeOrigin": true,
     "logLevel": "debug",
     "pathRewrite": {
-      "^/historical": ""
+      "^/rvTileCache": ""
+    }
+  },
+  "/rvAPI": {
+    "target": "https://api.rainviewer.com/public/weather-maps.json",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/rvAPI": ""
     }
   }
 }

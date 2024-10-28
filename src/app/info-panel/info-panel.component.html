@@ -1,0 +1,46 @@
+<div class="info-panel" [class.visible]="infoPanelVisible">
+    <p *ngIf="hasInfoPanelData; else no_info;">
+        <b>{{ infoPanelType === InfoType.FORECAST ? infoPanelData.locationName : 'Weather Event' }}</b>
+    </p>
+    <div class="info-panel-content-container">
+        <div id="info-panel-forecast" class="forecast-content" *ngIf="hasForecastData">
+            <p> {{ getCurrentForecast.shortForecast }} </p>
+            <div class="current-weather-container">
+                <div class="current-weather">
+                    <div class="column-1">
+                        <div class="current-temperature">{{ getCurrentForecast.temperature }}° {{ getCurrentForecast.temperatureUnit }}</div>
+                        <div class="weather-icon-container">
+                            <img class="weather-icon" [src]="getCurrentForecast.icon" alt="Weather Icon" />
+                        </div>
+                        
+                    </div>
+                    <div class="column-2">
+                        <div class="weather-row">Winds: {{ getCurrentForecast.windSpeed }}</div>
+                        <div class="weather-row">Humidity: {{ getCurrentForecast.windSpeed }}</div>
+                        <div class="weather-row">Precipitation: {{ getCurrentForecast.probabilityOfPrecipitation.value }}%</div>
+                    </div>
+                </div>
+                <div>Hourly Forecast</div>
+                <div class="today-hourly-weather hourly-container">
+                    <div class="hourly-panel" *ngFor="let hour of getHourlyForecast">
+                        <div class="time"> {{getTime(hour.startTime)}}:00 </div>
+                        <div class="hourly-temperature">{{ hour.temperature }}° {{ hour.temperatureUnit }}</div>
+                        <div class="weather-icon-container">
+                            <img class="weather-icon" [src]="hour.icon" alt="Weather Icon" />
+                        </div>
+                        <div class="hourly-forecast">{{hour.shortForecast}}</div>
+                    </div>
+                </div>
+            </div>
+            <p> Daily Forecast </p>
+            <div class="daily-forecast">
+                <app-weather-card 
+                    *ngFor="let period of getDailyForecast"
+                    [forecastPeriod]="period">
+                </app-weather-card>
+            </div>
+        </div>
+        <div id="info-panel-event" class="event-content" *ngIf="hasEventData" [innerHTML]="infoPanelData"></div>
+    </div>
+</div>
+<ng-template #no_info><p>No Weather Data Available</p></ng-template>

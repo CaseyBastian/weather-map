@@ -14,7 +14,8 @@ interface Geometry {
 
 export enum SourceLayerType {
   FORECAST = 'forecast',
-  EVENT = 'event'
+  EVENT = 'event',
+  RADAR = 'radar'
 }
 
 export interface EventLayer {
@@ -139,7 +140,31 @@ export interface Period {
   detailedForecast: string;
 }
 
+interface Frame {
+  time: number;
+  path: string;
+}
+
+interface RadarData {
+  past: Frame[];
+  nowcast: Frame[];
+}
+
+interface SatelliteData {
+  infrared: Frame[];
+}
+
+export interface RainViewerApiData {
+  version: string;
+  generated: number;
+  host: string;
+  radar: RadarData;
+  satellite: SatelliteData;
+}
+
 const eventLayersArr: EventLayer[] = [];
+
+const radarLayersArr: EventLayer[] = [];
 
 const forecastLayersArr: ForecastLayer[] = [
   { name: "Los Angeles", visible: true, latitude: 34.0522, longitude: -118.2437 },
@@ -161,9 +186,11 @@ const forecastLayersArr: ForecastLayer[] = [
 export class WeatherLayersService {
   private forecastLayersSource = new BehaviorSubject<ForecastLayer[]>(forecastLayersArr);
   private eventLayersSource = new BehaviorSubject<EventLayer[]>(eventLayersArr);
+  private radarLayersSource = new BehaviorSubject<EventLayer[]>(radarLayersArr);
 
   forecastLayers$ = this.forecastLayersSource.asObservable();
   eventLayers$ = this.eventLayersSource.asObservable();
+  radarLayers$ = this.radarLayersSource.asObservable();
 
   constructor(private http: HttpClient) { }
 
@@ -173,6 +200,16 @@ export class WeatherLayersService {
 
   getEventLayers(): EventLayer[] {
     return this.eventLayersSource.value;
+  }
+
+  addRadarsToSource(radarName: string): void {
+    const radarLayers = this.radarLayersSource.getValue();
+    const newLayers = [
+      ...radarLayers,
+      {name: radarName, visible: radarName === 'NOAA'}
+    ];
+
+    this.radarLayersSource.next(newLayers);
   }
 
   addEventsToSource(eventData: AlertApiResponse): void {
@@ -236,18 +273,18 @@ export class WeatherLayersService {
         layer.name === layerName ? { ...layer, visible: !layer.visible } : layer
       );
       this.eventLayersSource.next(updatedLayers);
+    } else if (sourceType === SourceLayerType.RADAR) {
+      const layers = this.radarLayersSource.value;
+      const updatedLayers: EventLayer[] = layers.map(layer => 
+        layer.name === layerName ? {...layer, visible: true} : {...layer, visible: false }
+      );
+      this.radarLayersSource.next(updatedLayers);
     }
   }
 
   getVisibleLayers(SourceType: SourceLayerType): ForecastLayer[] | EventLayer[] {
     const values = SourceType === SourceLayerType.EVENT ? this.eventLayersSource.value : this.forecastLayersSource.value;
     return values.filter(layer => layer.visible);
-  }
-
-  private getStartDate(days: number): string {
-    const date = new Date();
-    date.setDate(date.getDate() - days);
-    return date.toISOString().split('T')[0];
   }
 
   async getGridPoint(latitude: number, longitude: number): Promise<{ gridId: string, gridX: number, gridY: number }> {
@@ -258,6 +295,13 @@ export class WeatherLayersService {
     const gridId = response.properties.gridId;
 
     return { gridId, gridX, gridY };
+  }
+
+  async fetchRainViewerAPI(): Promise<RainViewerApiData | any> {
+    const url = '/rvAPI';
+    const response = await lastValueFrom(this.http.get(url));
+
+    return response;
   }
 
   async fetchForecastData(gridPoint: { gridId: string, gridX: number, gridY: number }): Promise<GridPointResponse | any> {

@@ -1,0 +1,96 @@
+.info-panel {
+    position: absolute;
+    top: 60px;
+    right: 10px;
+    width: 400px;
+    background-color: rgba(255, 255, 255, 0.8); 
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); 
+    z-index: 10;
+    transition: transform 0.3s ease;
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
+    display: none;
+}
+
+.info-panel.visible {
+    display: block;
+}
+
+.weather-icon-container {
+    position: relative;
+    width: 100%;
+    height: auto;
+    overflow: hidden;
+}
+
+.weather-icon {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: contain;
+}
+
+.weather-icon::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 100%);
+}
+
+.current-weather-contaienr {
+    height: 400px;
+    width: 100%;
+}
+
+.current-weather {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+
+.column-1 {
+    flex: 0 0 25%;
+    background-color: rgba(0,0,0,0.6);
+    color: #ffffff;
+}
+
+.column-2 {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.weather-row {
+    flex: 1;
+    padding: 5px;
+    margin: 2px 0 2px 0;
+}
+
+.current-temperature {
+    font-size: 24pt;
+    text-align: center;
+    padding: 15px 10px;
+}
+
+.hourly-container {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 10px;
+}
+
+.hourly-panel {
+    flex: 0 0 auto;
+    margin-right: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 100px;
+    text-align: center;
+}

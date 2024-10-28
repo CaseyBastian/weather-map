@@ -21,7 +21,10 @@ import {
 export class SidebarComponent implements OnInit {
   forecastLayers$!: Observable<ForecastLayer[]>;
   eventLayers$!: Observable<EventLayer[]>;
+  radarLayers$!: Observable<EventLayer[]>;
+
   eventLayers: EventLayer[] = [];
+  radarLayers: EventLayer[] = [];
   sidebarVisible: boolean = true;
   sourceLayerType = SourceLayerType;
   hasEvents: boolean = false;
@@ -31,10 +34,15 @@ export class SidebarComponent implements OnInit {
   ngOnInit(): void {
     this.forecastLayers$ = this.weatherLayerService.forecastLayers$;
     this.eventLayers$ = this.weatherLayerService.eventLayers$;
+    this.radarLayers$ = this.weatherLayerService.radarLayers$;
 
     this.eventLayers$.subscribe(eventLayers => {
       this.hasEvents = this.weatherLayerService.hasEvents();
       this.eventLayers = [...eventLayers].sort((a,b)=> a.name.localeCompare(b.name));
+    });
+
+    this.radarLayers$.subscribe(radarLayers => {
+      this.radarLayers = [...radarLayers];
     });
   }
 
