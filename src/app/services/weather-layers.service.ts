@@ -2,8 +2,6 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, lastValueFrom } from 'rxjs';
 
-import { Feature } from 'ol';
-
 enum FeatureType {
   Feature = "Feature",
   FeatureCollection = "FeatureCollection"
@@ -246,6 +244,12 @@ export class WeatherLayersService {
     return values.filter(layer => layer.visible);
   }
 
+  private getStartDate(days: number): string {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date.toISOString().split('T')[0];
+  }
+
   async getGridPoint(latitude: number, longitude: number): Promise<{ gridId: string, gridX: number, gridY: number }> {
     const url = `/weather/points/${latitude},${longitude}`;
     const response = await lastValueFrom(this.http.get<any>(url));
@@ -261,6 +265,13 @@ export class WeatherLayersService {
     const response = await lastValueFrom(this.http.get(url));
 
     return response;
+  }
+
+  async fetchHourlyForecastData(gridPoint: { gridId: string, gridX: number, gridY: number }): Promise<any> {
+    const url = `/weather/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast/hourly`;
+    const response = await lastValueFrom(this.http.get(url));
+
+    return response;   
   }
 
   async fetchEventData(): Promise<AlertApiResponse | any> {

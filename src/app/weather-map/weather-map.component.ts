@@ -1,4 +1,4 @@
-import { Component, AfterViewInit, HostListener, OnDestroy } from '@angular/core';
+import { Component, AfterViewInit, HostListener, OnDestroy, Renderer2 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { Subject, takeUntil } from 'rxjs';
@@ -22,9 +22,10 @@ import {
   EventLayer,
   ForecastLayer,
   AlertApiResponse,
-  GridPointResponse
+  GridPointResponse,
+  Period
 } from '../services/weather-layers.service';
-import { L } from '@angular/cdk/keycodes';
+import { InfoPanelService, InfoType } from '../services/info-panel.service';
 
 @Component({
   selector: 'app-weather-map',
@@ -41,21 +42,24 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   private popupOpen: boolean = false;
   private USCenterLongLat: number[] = [-98.5795, 39.8283];
   private reloadIntervalId: any;
+  private iconOverlayMap: Map<string, Overlay> = new Map();
   private forecastVectorLayerMap: Map<string, VectorLayer> = new Map();
   private eventVectorLayerMap: Map<string, VectorLayer> = new Map();
   private eventVisibilityState: Map<string, boolean> = new Map();
   private forecastVisibilityState: Map<string, boolean> = new Map();
 
-  constructor(private weatherLayersService: WeatherLayersService) { }
+  constructor(
+    private weatherLayersService: WeatherLayersService,
+    private infoPanelService: InfoPanelService,
+    private renderer: Renderer2
+  ) {}
 
   ngAfterViewInit(): void {
-    const closer = document.getElementById('popup-close');
 
     this.initializeMap();
     this.loadForecastLayers();
     this.loadEventLayers();
     this.addRadarOverlayLayer();
-    this.initOverlay();
 
     this.weatherLayersService.eventLayers$
       .pipe(takeUntil(this.destroy$))
@@ -67,10 +71,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.reloadIntervalId = setInterval(() => {
       console.log('Interval Refresh');
     }, 300000);
-
-    closer?.addEventListener('click', () => {
-      this.closePopup();
-    });
   }
 
   ngOnDestroy(): void {
@@ -100,48 +100,31 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const feature = this.map.forEachFeatureAtPixel(evt.pixel, (feat) => feat);
 
       if (feature) {
-        const coords = evt.coordinate;
-        this.popupOpen = true;
-        this.showOverlay(coords, feature);
-      } else if (!this.popupOpen) {
-        this.overlay.setPosition(undefined);
+        this.showInfoPanel(feature);
       }
     });
 
     this.map.on('click', (evt) => {
       const feature = this.map.forEachFeatureAtPixel(evt.pixel, (feat) => feat);
       if (!feature) {
-        this.closePopup();
+        this.infoPanelService.setInfoPanelVisibility(false);
       }
     });
   }
 
-  private initOverlay(): void {
-    const popupElement = document.getElementById('map-popup') as HTMLElement;
-
-    if (popupElement) {
-      this.overlay = new Overlay({
-        element: popupElement,
-        autoPan: false
-      });
-
-      this.map.addOverlay(this.overlay);
-    }
-  }
-
-  private closePopup(): void {
-    this.popupOpen = false;
-    this.overlay.setPosition(undefined);
-    const popupElement = document.getElementById('map-popup') as HTMLElement;
-    if (popupElement) {
-      popupElement.style.display = 'none';
-    }
-  }
-
-  private addForecastLayer(layerName: string, features: Feature[], visible: boolean = true): void {
+  private addForecastLayer(layerName: string, features: Feature[], hourlyForecast: any, visible: boolean = true): void {
     const vectorSource = new VectorSource({
-      features: features
+      features: features.map(feature => {
+        feature.setProperties({
+          ...feature.getProperties(),
+          locationName: layerName,
+          hourlyForecast: hourlyForecast
+        });
+
+        return feature;
+      })
     });
+
     let vectorLayer = this.forecastVectorLayerMap.get(layerName);
 
     if (vectorLayer) {
@@ -157,6 +140,60 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     }
 
     this.forecastVisibilityState.set(layerName, visible);
+
+    const extent = vectorSource.getExtent();
+    const center = [
+      (extent[0]+extent[2]) /2,
+      (extent[1]+extent[3]) /2
+    ];
+
+    this.createIconOverlay(layerName, center, visible);
+  }
+
+  private createIconOverlay(layerName: string, center:number[], visible: boolean){
+    let iconOverlay = this.iconOverlayMap.get(layerName);
+
+    if(iconOverlay) {
+      const iconElement = iconOverlay.getElement();
+
+      if(iconElement){
+        iconElement.style.display = visible ? 'block' : 'none';
+      }
+      iconOverlay.setPosition(center);
+    } else {
+      const iconElement = this.renderer.createElement('div');
+
+      this.renderer.setStyle(iconElement, 'position', 'absolute');
+      this.renderer.setStyle(iconElement, 'transform', 'translate(-50%, -100%)');
+
+      const placeIcon = this.renderer.createElement('mat-icon');
+      this.renderer.setStyle(placeIcon, 'color', 'blue');
+      this.renderer.setStyle(placeIcon, 'fontSize', '16px');
+      this.renderer.appendChild(placeIcon, this.renderer.createText('place'));
+      this.renderer.addClass(placeIcon, 'mat-icon');
+      this.renderer.addClass(placeIcon, 'material-icons');
+      this.renderer.appendChild(iconElement, placeIcon);
+
+      this.renderer.listen(iconElement, 'mouseover', (evt) => {
+        const features = this.getInfoPanelFeature(layerName)[0];
+  
+        if (features) {
+          this.showInfoPanel(features);
+        }
+      });
+
+      const newIconOverlay = new Overlay({
+        element: iconElement,
+        positioning: 'bottom-center'
+      });
+
+      newIconOverlay.setPosition(center);
+      this.map.addOverlay(newIconOverlay);
+      this.iconOverlayMap.set(layerName, newIconOverlay);
+    }
+    
+    this.toggleIconVisibility(layerName, visible);
+
   }
 
   private async loadForecastLayers(): Promise<void> {
@@ -167,8 +204,23 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const forecastData: GridPointResponse = await this.weatherLayersService.fetchForecastData(gridPoint);
       const geoJSONFormat = new GeoJSON();
       const features = geoJSONFormat.readFeatures(forecastData, { featureProjection: 'EPSG:3857' });
+      const hourlyForecast = await this.weatherLayersService.fetchHourlyForecastData(gridPoint);
+      this.addForecastLayer(
+        visibleLayer.name,
+        features,
+        hourlyForecast?.properties?.periods ? hourlyForecast.properties.periods.slice(0, 6) : null,
+        visibleLayer.visible
+      );
+    }
+  }
 
-      this.addForecastLayer(visibleLayer.name, features, visibleLayer.visible);
+  private toggleIconVisibility(layerName: string, visible: boolean): void {
+    const iconOverlay = this.iconOverlayMap.get(layerName);
+    if(iconOverlay) {
+      const iconElement = iconOverlay.getElement();
+      if(iconElement){
+        iconElement.style.display = visible ? 'block' : 'none';
+      }
     }
   }
 
@@ -177,10 +229,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       forecastLayers.forEach(forecastLayer => {
         const vectorLayer = this.forecastVectorLayerMap.get(forecastLayer.name);
 
-        if(vectorLayer){
+        if (vectorLayer) {
           vectorLayer.setVisible(forecastLayer.visible);
           this.forecastVisibilityState.set(forecastLayer.name, forecastLayer.visible);
         }
+        
+        this.toggleIconVisibility(forecastLayer.name, forecastLayer.visible);
       });
     }
   }
@@ -197,7 +251,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     const dataFeatures = eventData.features;
     events.forEach(evt => {
       const filteredFeatures = dataFeatures.filter(dataFeature => { return evt.name === dataFeature.properties.event; });
-      const newFeatureData = {...eventData, features: filteredFeatures};
+      const newFeatureData = { ...eventData, features: filteredFeatures };
       this.addEventLayer(newFeatureData, evt.name);
     });
 
@@ -226,7 +280,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       eventLayers.forEach(eventLayer => {
         const vectorLayer = this.eventVectorLayerMap.get(eventLayer.name);
 
-        if(vectorLayer){
+        if (vectorLayer) {
           vectorLayer.setVisible(eventLayer.visible);
           this.eventVisibilityState.set(eventLayer.name, eventLayer.visible);
         }
@@ -240,7 +294,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
     let color;
 
-    switch(severity) {
+    switch (severity) {
       case 'Severe':
         color = 'rgba(255, 20, 20,';
         break;
@@ -259,10 +313,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     }
 
     const style = new Style({
-      fill: new Fill ({
+      fill: new Fill({
         color: color + '0.2)'
       }),
-      stroke: new Stroke ({
+      stroke: new Stroke({
         color: color + '1)',
         width: 2
       })
@@ -271,50 +325,74 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     return style;
   }
 
-  private showOverlay(coords: number[], feature: any): void {
-    const overlayElement = this.overlay.getElement() as HTMLElement;
-    const props = feature.getProperties();
+  private buildForecastContent(props: any): string {
     let content = '';
-
-    if (props && props['@type'] === 'wx:Alert') {
-      const {
-        // areaDesc,
-        // certainty,
-        description,
-        // effective,
-        // ends,
-        event,
-        expires,
-        headline,
-        // status,
-        // urgency,
-        // instruction,
-        // onset
-        severity
-      } = props;
-
-      content = `<p><b>${headline}</b></p>
-                 <p>Event: ${event}</p>
-                 <p>Severity: ${severity}</p>
-                 <p>Expires: ${expires}</p>
-                 <p>${description}</p>`;
-    } else if (props && props.periods) {
-      const period = props.periods[0];
-      content = `<b>${period.name}</b>
+    const period = props.periods[0];
+    const locationName = props.locationName || 'Location Unknown';
+    const hourlyForecastData: Period[] = props.hourlyForecast;
+    content = `<b>${locationName}</b>
+                 <b>${period.name}</b>
                  <p>Temperature: ${period.temperature} ${period.temperatureUnit}</p>
                  <p>${period.shortForecast}</p>`;
+
+    if (hourlyForecastData) {
+      console.log('hourly', hourlyForecastData);
+      content += '<b>Hourly Forecast</b><div class="hourly-forecast-container">';
+      hourlyForecastData.forEach(hour => {
+        content += `<app-weather-card forecast=${hour}></app-weather-card>`
+      });
+      content += '</div>';
     }
 
-    if (overlayElement) {
-      const popupContent = overlayElement.querySelector('#map-popup-content') as HTMLElement;
-      if (popupContent) {
-        popupContent.innerHTML = content;
-        popupContent.scrollTop = 0;
-        this.overlay.setPosition(coords);
-        const popupElement = document.getElementById('map-popup') as HTMLElement;
-        popupElement.style.display = 'block';
-      }
+    return content;
+  }
+
+  private buildEventContent(props: any): string {
+    let content = '';
+    const {
+      // areaDesc,
+      // certainty,
+      description,
+      // effective,
+      // ends,
+      event,
+      expires,
+      headline,
+      // status,
+      // urgency,
+      // instruction,
+      // onset
+      severity
+    } = props;
+
+    content = `<p><b>${headline}</b></p>
+               <p>Event: ${event}</p> 
+               <p>Severity: ${severity}</p>
+               <p>Expires: ${expires}</p>
+               <p>${description}</p>`;
+    return content;
+  }
+
+  private getInfoPanelFeature(layerName: string) : any {
+    const features = this.forecastVectorLayerMap.get(layerName)?.getSource()?.getFeatures();
+    return features;
+  }
+
+  private showInfoPanel(feature: any): void {
+    const props = feature.getProperties();
+
+    if (props && props['@type'] === 'wx:Alert') {
+      console.log('Weather Map: its an event')
+      const content = this.buildEventContent(props);
+      this.infoPanelService.setInfoPanelType(InfoType.EVENT);
+      this.infoPanelService.setInfoPanelData(content);
+    } else if (props && props.periods) {
+      console.log('Weather Map: Its a forecast');
+      this.infoPanelService.setInfoPanelType(InfoType.FORECAST);
+      this.infoPanelService.setInfoPanelData(props);
     }
+   
+    this.infoPanelService.setInfoPanelVisibility(true);
   }
 
   private addRadarOverlayLayer(): void {

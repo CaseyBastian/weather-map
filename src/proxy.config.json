@@ -16,5 +16,14 @@
     "pathRewrite": {
       "^/noaa": ""
     }
+  },
+  "/historical": {
+    "target": "https://www.ncei.noaa.gov/cdo-web/api/v2",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/historical": ""
+    }
   }
 }
