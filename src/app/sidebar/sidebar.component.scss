@@ -9,7 +9,7 @@
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); 
     z-index: 10;
     transition: transform 0.3s ease;
-    max-height: 800px;
+    max-height: calc(100vh - 100px);
     overflow-y: auto;
 
     .category-header:not(:first-of-type){

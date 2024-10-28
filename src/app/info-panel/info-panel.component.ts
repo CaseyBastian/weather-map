@@ -46,7 +46,6 @@ export class InfoPanelComponent implements AfterViewInit, OnDestroy{
 
   updateInfoPanel(data: any) : void {
     this.infoPanelData = data;
-    console.log('info panel', data);
   }
 
   getTime(dateTime: string): string {
