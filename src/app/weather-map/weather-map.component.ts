@@ -28,6 +28,13 @@ import {
 } from '../services/weather-layers.service';
 import { InfoPanelService, InfoType } from '../services/info-panel.service';
 
+enum EventSeverityScale {
+  MINOR = "0, 255, 0",
+  MODERATE = "255, 255, 0",
+  SEVERE = "255, 165, 0", 
+  EXTREME = "139, 0, 0"
+}
+
 @Component({
   selector: 'app-weather-map',
   standalone: true,
@@ -296,36 +303,43 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  
+
+
   private styleEvent(feature: FeatureLike): Style {
     const properties = feature.getProperties();
     const severity = properties['severity'];
+    console.log('severity', properties, severity);
 
-    let color;
+    const color = severity ? EventSeverityScale[severity.toUpperCase() as keyof typeof EventSeverityScale] : '0, 100, 255';
+    console.log('color', color, `rgba(${color}, 1)`);
 
-    switch (severity) {
-      case 'Severe':
-        color = 'rgba(255, 20, 20,';
-        break;
+    // let color;
 
-      case 'Moderate':
-        color = 'rgba(255, 80, 0,';
-        break;
+    // switch (severity) {
+    //   case 'Severe':
+    //     color = 'rgba(255, 20, 20,';
+    //     break;
 
-      case 'Minor':
-        color = 'rgba(0, 100, 255,';
-        break;
+    //   case 'Moderate':
+    //     color = 'rgba(255, 80, 0,';
+    //     break;
 
-      default:
-        color = 'rgba(0, 100, 255,';
-        break;
-    }
+    //   case 'Minor':
+    //     color = 'rgba(0, 100, 255,';
+    //     break;
+
+    //   default:
+    //     color = 'rgba(0, 100, 255,';
+    //     break;
+    // }
 
     const style = new Style({
       fill: new Fill({
-        color: color + '0.2)'
+        color: `rgba(${color}, 0.2)`
       }),
       stroke: new Stroke({
-        color: color + '1)',
+        color: `rgba(${color}, 1)`,
         width: 2
       })
     });
