@@ -178,6 +178,7 @@ const forecastLayersArr: ForecastLayer[] = [
   { name: "Chicago", visible: true, latitude: 41.8781, longitude: -87.6298 },
   { name: "Phoenix", visible: true, latitude: 33.4484, longitude: -112.0740 },
   { name: "New Orleans", visible: true, latitude: 29.9511, longitude: -90.0715 },
+  { name: "Ft. Belvoir", visible: true, latitude:38.7189, longitude: -77.1543}
 ];
 
 @Injectable({

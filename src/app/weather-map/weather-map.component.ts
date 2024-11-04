@@ -114,6 +114,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const feature = this.map.forEachFeatureAtPixel(evt.pixel, (feat) => feat);
 
       if (feature) {
+        this.highlightEventLayer(feature);
         this.showInfoPanel(feature);
       }
     });
@@ -122,6 +123,13 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const feature = this.map.forEachFeatureAtPixel(evt.pixel, (feat) => feat);
       if (!feature) {
         this.infoPanelService.setInfoPanelVisibility(false);
+        this.eventVectorLayerMap.forEach(vectorLayer => {
+          const layerFeatures = vectorLayer.getSource()?.getFeatures();
+          layerFeatures?.forEach(layerFeature => {
+            const defaultStyle = this.styleEvent(layerFeature);
+            layerFeature.setStyle(defaultStyle);
+          });
+        });
       }
     });
   }
@@ -179,11 +187,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const iconElement = this.renderer.createElement('div');
 
       this.renderer.setStyle(iconElement, 'position', 'absolute');
-      this.renderer.setStyle(iconElement, 'transform', 'translate(-50%, -100%)');
+      this.renderer.setStyle(iconElement, 'transform', 'translate(-30%, -50%)');
 
       const placeIcon = this.renderer.createElement('mat-icon');
-      this.renderer.setStyle(placeIcon, 'color', 'blue');
-      this.renderer.setStyle(placeIcon, 'fontSize', '16px');
+
+      this.renderer.setStyle(placeIcon, 'color', layerName === 'Ft. Belvoir' ? 'blueviolet' : 'blue');
+      this.renderer.setStyle(placeIcon, 'fontSize', '18px');
       this.renderer.appendChild(placeIcon, this.renderer.createText('place'));
       this.renderer.addClass(placeIcon, 'mat-icon');
       this.renderer.addClass(placeIcon, 'material-icons');
@@ -303,37 +312,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  
-
-
   private styleEvent(feature: FeatureLike): Style {
     const properties = feature.getProperties();
     const severity = properties['severity'];
-    console.log('severity', properties, severity);
-
     const color = severity ? EventSeverityScale[severity.toUpperCase() as keyof typeof EventSeverityScale] : '0, 100, 255';
-    console.log('color', color, `rgba(${color}, 1)`);
-
-    // let color;
-
-    // switch (severity) {
-    //   case 'Severe':
-    //     color = 'rgba(255, 20, 20,';
-    //     break;
-
-    //   case 'Moderate':
-    //     color = 'rgba(255, 80, 0,';
-    //     break;
-
-    //   case 'Minor':
-    //     color = 'rgba(0, 100, 255,';
-    //     break;
-
-    //   default:
-    //     color = 'rgba(0, 100, 255,';
-    //     break;
-    // }
-
     const style = new Style({
       fill: new Fill({
         color: `rgba(${color}, 0.2)`
@@ -376,6 +358,41 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   private getInfoPanelFeature(layerName: string) : any {
     const features = this.forecastVectorLayerMap.get(layerName)?.getSource()?.getFeatures();
     return features;
+  }
+
+  private highlightEventLayer(features: FeatureLike): void {
+    const featureId = features.getId();
+
+    this.eventVectorLayerMap.forEach((vectorLayer, key) => {
+      const layerFeatures = vectorLayer.getSource()?.getFeatures();
+      const vectorStyle = vectorLayer.getStyle();
+
+      if (layerFeatures){
+        layerFeatures.forEach(layerFeature => {
+          if (layerFeature.getId() === featureId) {
+            let highlightStyle;
+            if (typeof vectorStyle === 'function') {
+              const originalStyle = vectorStyle(layerFeature, 0) as Style;
+              highlightStyle = new Style({
+                fill: new Fill({
+                  color: originalStyle.getFill()?.getColor()
+                }),
+                stroke: new Stroke({
+                  color: originalStyle.getStroke()?.getColor(),
+                  width: 5
+                })
+              });
+            }
+
+            layerFeature.setStyle(highlightStyle);
+          } else {
+            const defaultStyle = this.styleEvent(layerFeature);
+            layerFeature.setStyle(defaultStyle);
+          }
+          
+        });
+      }
+    });
   }
 
   private showInfoPanel(feature: any): void {
