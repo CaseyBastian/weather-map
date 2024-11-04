@@ -2,15 +2,23 @@
     position: absolute;
     top: 60px;
     left: 10px;
-    width: 200px;
+    width: 250px;
     background-color: rgba(255, 255, 255, 0.8); 
-    padding: 15px;
+    padding: 0;
+    padding-right: 15px;
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); 
     z-index: 10;
     transition: transform 0.3s ease;
     max-height: calc(100vh - 100px);
+    overflow: hidden;
     overflow-y: auto;
+
+    .sidebar-container {
+        margin: 10px 15px 0 10px;
+        width: calc(100% - 25px);
+        height: 100%;
+    }
 
     .category-header:not(:first-of-type){
         margin-top: 30px;
@@ -52,4 +60,18 @@
     input[type="checkbox"] {
         margin-right: 10px;
     }
+
+    ::ng-deep .mat-expansion-panel {
+        box-shadow: none;
+        background-color: transparent;
+    }
+
+    ::ng-deep .mat-expansion-panel-header {
+        background-color: transparent;
+        padding-left: 0;
+    }
+
+    ::ng-deep .mat-expansion-panel-header:hover {
+        background-color: transparent !important;
+      }
 }

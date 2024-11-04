@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { Observable } from 'rxjs';
 import { CommonModule} from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
+import { MatExpansionModule } from '@angular/material/expansion';
 
 import { 
   WeatherLayersService,
@@ -16,7 +17,7 @@ import {
   standalone: true,
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.scss',
-  imports: [CommonModule, MatIconModule]
+  imports: [CommonModule, MatIconModule, MatExpansionModule ]
 })
 export class SidebarComponent implements OnInit {
   forecastLayers$!: Observable<ForecastLayer[]>;

@@ -23,7 +23,7 @@ import {
   ForecastLayer,
   AlertApiResponse,
   GridPointResponse,
-  Period,
+  RadarLayerNames,
   RainViewerApiData
 } from '../services/weather-layers.service';
 import { InfoPanelService, InfoType } from '../services/info-panel.service';
@@ -32,8 +32,10 @@ enum EventSeverityScale {
   MINOR = "0, 255, 0",
   MODERATE = "255, 255, 0",
   SEVERE = "255, 165, 0", 
-  EXTREME = "139, 0, 0"
+  EXTREME = "255, 69, 0"
 }
+
+const projection = 'EPSG:3857';
 
 @Component({
   selector: 'app-weather-map',
@@ -69,8 +71,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.initializeMap();
     this.loadForecastLayers();
     this.loadEventLayers();
-    this.addNOAARadarLayer();
-    this.addRVRadarLayer();
 
     this.weatherLayersService.eventLayers$
       .pipe(takeUntil(this.destroy$))
@@ -81,6 +81,11 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.weatherLayersService.radarLayers$
       .pipe(takeUntil(this.destroy$))
       .subscribe(radarLayers => {this.toggleRadarLayers(radarLayers); });
+
+    setTimeout(() => {
+      this.addNOAARadarLayer();
+      this.addRVRadarLayer();
+    });
 
     this.reloadIntervalId = setInterval(() => {
       console.log('Interval Refresh');
@@ -227,7 +232,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const gridPoint = await this.weatherLayersService.getGridPoint(visibleLayer.latitude, visibleLayer.longitude);
       const forecastData: GridPointResponse = await this.weatherLayersService.fetchForecastData(gridPoint);
       const geoJSONFormat = new GeoJSON();
-      const features = geoJSONFormat.readFeatures(forecastData, { featureProjection: 'EPSG:3857' });
+      const features = geoJSONFormat.readFeatures(forecastData, { featureProjection: projection });
       const hourlyForecast = await this.weatherLayersService.fetchHourlyForecastData(gridPoint);
       this.addForecastLayer(
         visibleLayer.name,
@@ -283,7 +288,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
   private addEventLayer(eventData: AlertApiResponse, eventType: string): void {
     const geoJSONFormat = new GeoJSON();
-    const features = geoJSONFormat.readFeatures(eventData, { featureProjection: 'EPSG:3857' });
+    const features = geoJSONFormat.readFeatures(eventData, { featureProjection: projection });
     const vectorSource = new VectorSource({
       features: features
     });
@@ -329,6 +334,21 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     return style;
   }
 
+  private formatTime(dateTimeString: string): string {
+    const dateTime = new Date(dateTimeString);
+    const timeString = dateTime.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+      timeZoneName: 'short'
+    });
+    const dateString = dateTime.toLocaleDateString('en-US', {
+      month: 'short',
+      day: '2-digit'
+    });
+
+    return `${dateString} at ${timeString}`;
+  }
   private buildEventContent(props: any): string {
     let content = '';
     const {
@@ -350,7 +370,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     content = `<p><b>${headline}</b></p>
                <p>Event: ${event}</p> 
                <p>Severity: ${severity}</p>
-               <p>Expires: ${expires}</p>
+               <p>Expires: ${this.formatTime(expires)}</p>
                <p>${description}</p>`;
     return content;
   }
@@ -366,6 +386,13 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.eventVectorLayerMap.forEach((vectorLayer, key) => {
       const layerFeatures = vectorLayer.getSource()?.getFeatures();
       const vectorStyle = vectorLayer.getStyle();
+      const featureOutlineStyle = new Style({
+        zIndex: 1,
+        stroke: new Stroke({
+          color:'black',
+          width: 7
+        })
+      });
 
       if (layerFeatures){
         layerFeatures.forEach(layerFeature => {
@@ -374,6 +401,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
             if (typeof vectorStyle === 'function') {
               const originalStyle = vectorStyle(layerFeature, 0) as Style;
               highlightStyle = new Style({
+                zIndex: 10,
                 fill: new Fill({
                   color: originalStyle.getFill()?.getColor()
                 }),
@@ -384,7 +412,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
               });
             }
 
-            layerFeature.setStyle(highlightStyle);
+            layerFeature.setStyle([featureOutlineStyle, highlightStyle]);
           } else {
             const defaultStyle = this.styleEvent(layerFeature);
             layerFeature.setStyle(defaultStyle);
@@ -423,38 +451,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private addNOAARadarLayer(): void {
-    this.weatherLayersService.addRadarsToSource('NOAA');
-
-    const url = '/noaa';
-    const radarSource = new TileWMS({
-      url: url,
-      params: {
-        'LAYERS': 'conus_bref_qcd',
-        'TILED': true,
-        'FORMAT': 'image/png',
-        'STYLES': 'radar_reflectivity', // Add the style parameter
-        'SRS': 'EPSG:3857', // Specify the SRS
-        'TRANSPARENT': true // Make the layer transparent
-      },
-      serverType: 'geoserver' // Specify the server type if needed
-    });
-
-    const radarLayer = new TileLayer({
-      source: radarSource,
-      opacity: 0.6
-    });
-
-    this.map.addLayer(radarLayer);
-    this.radarTileLayerMap.set('NOAA', radarLayer);
-    this.eventVisibilityState.set('NOAA', true);
-  }
-
-  private async addRVRadarLayer(): Promise<void>  {
+  private async addRVRadarLayer(): Promise<void> {
     const rvAPIData: RainViewerApiData = await this.weatherLayersService.fetchRainViewerAPI();
     const nowcast = rvAPIData.radar.nowcast[0];
     const url = `/rvTileCache${nowcast.path}/256/{z}/{x}/{y}/1/0_0.png`
-    this.weatherLayersService.addRadarsToSource('Rain Viewer');
 
     const source = new XYZ({
       url: url,
@@ -467,9 +467,35 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       visible: false
     });
 
+    this.weatherLayersService.addRadarsToSource(RadarLayerNames.RV);
     this.map.addLayer(radarLayer);
-    this.radarTileLayerMap.set('Rain Viewer', radarLayer);
-    this.eventVisibilityState.set('Rain Viewer', false);
+    this.radarTileLayerMap.set(RadarLayerNames.RV, radarLayer);
+    this.eventVisibilityState.set(RadarLayerNames.RV, false);
+  }
+
+  private addNOAARadarLayer(): void {
+    const radarSource = new TileWMS({
+      url: '/noaa',
+      params: {
+        'LAYERS': 'conus_bref_qcd',
+        'TILED': true,
+        'FORMAT': 'image/png',
+        'STYLES': 'radar_reflectivity', // Add the style parameter
+        'SRS': projection, // Specify the SRS
+        'TRANSPARENT': true // Make the layer transparent
+      },
+      serverType: 'geoserver' // Specify the server type if needed
+    });
+
+    const radarLayer = new TileLayer({
+      source: radarSource,
+      opacity: 0.6
+    });
+
+    this.weatherLayersService.addRadarsToSource(RadarLayerNames.NOAA);
+    this.map.addLayer(radarLayer);
+    this.radarTileLayerMap.set(RadarLayerNames.NOAA, radarLayer);
+    this.eventVisibilityState.set(RadarLayerNames.NOAA, true);
   }
 
   @HostListener('window:resize', ['$event'])

@@ -18,6 +18,11 @@ export enum SourceLayerType {
   RADAR = 'radar'
 }
 
+export enum RadarLayerNames {
+  RV = 'RainViewer Radar',
+  NOAA = 'NOAA Radar'
+}
+
 export interface EventLayer {
   name: string;
   visible: boolean;
@@ -207,7 +212,7 @@ export class WeatherLayersService {
     const radarLayers = this.radarLayersSource.getValue();
     const newLayers = [
       ...radarLayers,
-      {name: radarName, visible: radarName === 'NOAA'}
+      {name: radarName, visible: radarName === RadarLayerNames.NOAA}
     ];
 
     this.radarLayersSource.next(newLayers);
@@ -321,6 +326,20 @@ export class WeatherLayersService {
 
   async fetchEventData(): Promise<AlertApiResponse | any> {
     const url = '/weather/alerts/active';
+    const response = await lastValueFrom(this.http.get(url));
+
+    return response;
+  }
+
+  // async fetchDualPolarityData(): Promise<any> {
+  //   const url = '/weather/products';
+  //   const response = await lastValueFrom(this.http.get(url));
+
+  //   return response;
+  // }
+
+  async fetchVelocityData(): Promise<any> {
+    const url = '/weather/products';
     const response = await lastValueFrom(this.http.get(url));
 
     return response;
