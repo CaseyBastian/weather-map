@@ -344,7 +344,7 @@ export class WeatherLayersService {
     try{
       response = await lastValueFrom(this.http.get(url));
     } catch(error) {
-      console.log('Error fetching hourly forecast for gridpoint');
+      console.log(`Error fetching hourly forecast for gridpoint for ${JSON.stringify(gridPoint, null, 2)}`);
     }
 
     return response;

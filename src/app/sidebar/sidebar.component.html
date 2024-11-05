@@ -1,6 +1,8 @@
 <div class="sidebar" [class.hidden]="!sidebarVisible">
-    <mat-icon class="toggle-button" (click)="toggleSidebar()">menu</mat-icon>
-    <div class="sidebar-container">
+    <div class="sidebar-header">
+        <mat-icon class="toggle-button" (click)="toggleSidebar()">menu</mat-icon>
+    </div>
+    <div class="sidebar-content">
         <mat-expansion-panel>
             <mat-expansion-panel-header>
                 <div class="category-header"><b>Weather Stations</b></div>
@@ -33,5 +35,4 @@
             <p>No Weather Events Available</p>
         </ng-template>
     </div>
-
 </div>

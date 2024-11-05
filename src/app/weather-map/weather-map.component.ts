@@ -229,16 +229,25 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const layerBatch = visibleLayers.slice(i, i + batchSize);
 
       await Promise.all(layerBatch.map(async visibleLayer => {
-        const gridPoint = await this.weatherLayersService.getGridPoint(visibleLayer.latitude, visibleLayer.longitude);
-        const forecastData = await this.weatherLayersService.fetchForecastData(gridPoint);
         const geoJSONFormat = new GeoJSON();
+
+        const gridPoint = await this.weatherLayersService.getGridPoint(visibleLayer.latitude, visibleLayer.longitude);
+        if(!gridPoint){
+          return;
+        }
+        const forecastData = await this.weatherLayersService.fetchForecastData(gridPoint);
+        if(!forecastData) {
+          return;
+        }
+
         const features = geoJSONFormat.readFeatures(forecastData, { featureProjection: projection });
         const hourlyForecast = await this.weatherLayersService.fetchHourlyForecastData(gridPoint);
+        const periods = hourlyForecast?.properties?.periods?.slice(0, 6) || [];
 
         this.addForecastLayer(
           visibleLayer.name,
           features,
-          hourlyForecast?.properties?.periods ? hourlyForecast.properties.periods.slice(0, 6) : null,
+          periods,
           visibleLayer.visible
         );
       }));
@@ -518,7 +527,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     const loadForecastLayers = this.debounceLayer(()=> this.loadForecastLayers(), 300);
     const loadEventLayers = this.debounceLayer(()=> this.loadEventLayers(), 600);
     const addNOAARadar = this.debounceLayer(()=> this.addNOAARadarLayer(), 900);
-    const addRainViewerRadar = this.debounceLayer(()=> this.addRVRadarLayer(), 1200);
+    const addRainViewerRadar = this.debounceLayer(()=> this.addRVRadarLayer(), 2100);
 
     loadForecastLayers();
     loadEventLayers();
