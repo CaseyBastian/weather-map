@@ -240,6 +240,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
         hourlyForecast?.properties?.periods ? hourlyForecast.properties.periods.slice(0, 6) : null,
         visibleLayer.visible
       );
+
+      this.delayResolve(500);
     }
   }
 
@@ -496,6 +498,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.map.addLayer(radarLayer);
     this.radarTileLayerMap.set(RadarLayerNames.NOAA, radarLayer);
     this.eventVisibilityState.set(RadarLayerNames.NOAA, true);
+  }
+
+  delayResolve(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   @HostListener('window:resize', ['$event'])
