@@ -69,8 +69,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
 
     this.initializeMap();
-    this.loadForecastLayers();
-    this.loadEventLayers();
+    
+    this.loadLayers();
 
     this.weatherLayersService.eventLayers$
       .pipe(takeUntil(this.destroy$))
@@ -81,11 +81,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.weatherLayersService.radarLayers$
       .pipe(takeUntil(this.destroy$))
       .subscribe(radarLayers => {this.toggleRadarLayers(radarLayers); });
-
-    setTimeout(() => {
-      this.addNOAARadarLayer();
-      this.addRVRadarLayer();
-    });
 
     this.reloadIntervalId = setInterval(() => {
       console.log('Interval Refresh');
@@ -226,22 +221,29 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   }
 
   private async loadForecastLayers(): Promise<void> {
-    const visibleLayers: ForecastLayer[] = this.weatherLayersService.getVisibleLayers(SourceLayerType.FORECAST) as ForecastLayer[];
+    const visibleLayers: ForecastLayer[] = this.weatherLayersService.getVisibleLayers(SourceLayerType.FORECAST) as ForecastLayer[]; 
+    const batchSize = 3;
+    const delayBetween = 1000;
 
-    for (const visibleLayer of visibleLayers) {
-      const gridPoint = await this.weatherLayersService.getGridPoint(visibleLayer.latitude, visibleLayer.longitude);
-      const forecastData: GridPointResponse = await this.weatherLayersService.fetchForecastData(gridPoint);
-      const geoJSONFormat = new GeoJSON();
-      const features = geoJSONFormat.readFeatures(forecastData, { featureProjection: projection });
-      const hourlyForecast = await this.weatherLayersService.fetchHourlyForecastData(gridPoint);
-      this.addForecastLayer(
-        visibleLayer.name,
-        features,
-        hourlyForecast?.properties?.periods ? hourlyForecast.properties.periods.slice(0, 6) : null,
-        visibleLayer.visible
-      );
+    for(let i=0; i < visibleLayers.length; i+= batchSize) {
+      const layerBatch = visibleLayers.slice(i, i + batchSize);
 
-      this.delayResolve(500);
+      await Promise.all(layerBatch.map(async visibleLayer => {
+        const gridPoint = await this.weatherLayersService.getGridPoint(visibleLayer.latitude, visibleLayer.longitude);
+        const forecastData = await this.weatherLayersService.fetchForecastData(gridPoint);
+        const geoJSONFormat = new GeoJSON();
+        const features = geoJSONFormat.readFeatures(forecastData, { featureProjection: projection });
+        const hourlyForecast = await this.weatherLayersService.fetchHourlyForecastData(gridPoint);
+
+        this.addForecastLayer(
+          visibleLayer.name,
+          features,
+          hourlyForecast?.properties?.periods ? hourlyForecast.properties.periods.slice(0, 6) : null,
+          visibleLayer.visible
+        );
+      }));
+
+      await this.delayRequest(delayBetween);
     }
   }
 
@@ -500,8 +502,28 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.eventVisibilityState.set(RadarLayerNames.NOAA, true);
   }
 
-  delayResolve(ms: number) {
+  delayRequest(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  debounceLayer(func: ()=> void, delay: number) {
+    let timer: any;
+    return () => {
+      clearTimeout(timer);
+      timer = setTimeout(func, delay);
+    }
+  }
+
+  private async loadLayers() {
+    const loadForecastLayers = this.debounceLayer(()=> this.loadForecastLayers(), 300);
+    const loadEventLayers = this.debounceLayer(()=> this.loadEventLayers(), 600);
+    const addNOAARadar = this.debounceLayer(()=> this.addNOAARadarLayer(), 900);
+    const addRainViewerRadar = this.debounceLayer(()=> this.addRVRadarLayer(), 1200);
+
+    loadForecastLayers();
+    loadEventLayers();
+    addNOAARadar();
+    addRainViewerRadar();
   }
 
   @HostListener('window:resize', ['$event'])

@@ -293,54 +293,72 @@ export class WeatherLayersService {
     return values.filter(layer => layer.visible);
   }
 
-  async getGridPoint(latitude: number, longitude: number): Promise<{ gridId: string, gridX: number, gridY: number }> {
+  async getGridPoint(latitude: number, longitude: number): Promise<{ gridId: string, gridX: number, gridY: number } | undefined> {
     const url = `/weather/points/${latitude},${longitude}`;
-    const response = await lastValueFrom(this.http.get<any>(url));
-    const gridX = response.properties.gridX;
-    const gridY = response.properties.gridY;
-    const gridId = response.properties.gridId;
+    let gridPoint;
 
-    return { gridId, gridX, gridY };
+    try {
+      const response = await lastValueFrom(this.http.get<any>(url));
+      const gridX = response.properties.gridX;
+      const gridY = response.properties.gridY;
+      const gridId = response.properties.gridId;
+  
+      gridPoint = { gridId, gridX, gridY }
+    } catch(error) {
+      console.log('Error getting gridpoint');
+    };
+
+    return gridPoint;
   }
 
   async fetchRainViewerAPI(): Promise<RainViewerApiData | any> {
     const url = '/rvAPI';
-    const response = await lastValueFrom(this.http.get(url));
+    let response;
+
+    try {
+      response = await lastValueFrom(this.http.get(url));
+    } catch(error) {
+      console.log('Error fetching RainViewer Radar');
+    }
 
     return response;
   }
 
   async fetchForecastData(gridPoint: { gridId: string, gridX: number, gridY: number }): Promise<GridPointResponse | any> {
     const url = `/weather/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast`;
-    const response = await lastValueFrom(this.http.get(url));
+    let response;
+
+    try{
+      response = await lastValueFrom(this.http.get(url));
+    } catch(error) {
+      console.log('Error fetching forecast for gridpoint');
+    }
 
     return response;
   }
 
   async fetchHourlyForecastData(gridPoint: { gridId: string, gridX: number, gridY: number }): Promise<any> {
     const url = `/weather/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast/hourly`;
-    const response = await lastValueFrom(this.http.get(url));
-
-    return response;   
-  }
-
-  async fetchEventData(): Promise<AlertApiResponse | any> {
-    const url = '/weather/alerts/active';
-    const response = await lastValueFrom(this.http.get(url));
+    let response;
+    
+    try{
+      response = await lastValueFrom(this.http.get(url));
+    } catch(error) {
+      console.log('Error fetching hourly forecast for gridpoint');
+    }
 
     return response;
   }
 
-  // async fetchDualPolarityData(): Promise<any> {
-  //   const url = '/weather/products';
-  //   const response = await lastValueFrom(this.http.get(url));
-
-  //   return response;
-  // }
-
-  async fetchVelocityData(): Promise<any> {
-    const url = '/weather/products';
-    const response = await lastValueFrom(this.http.get(url));
+  async fetchEventData(): Promise<AlertApiResponse | any> {
+    const url = '/weather/alerts/active';
+    let response;
+    
+    try{
+      response = await lastValueFrom(this.http.get(url));
+    } catch(error) {
+      console.log('Error fetching weather events');
+    }
 
     return response;
   }
