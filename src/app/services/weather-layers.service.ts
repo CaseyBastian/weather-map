@@ -183,7 +183,8 @@ const forecastLayersArr: ForecastLayer[] = [
   { name: "Chicago", visible: true, latitude: 41.8781, longitude: -87.6298 },
   { name: "Phoenix", visible: true, latitude: 33.4484, longitude: -112.0740 },
   { name: "New Orleans", visible: true, latitude: 29.9511, longitude: -90.0715 },
-  { name: "Ft. Belvoir", visible: true, latitude:38.7189, longitude: -77.1543}
+  { name: "Ft. Belvoir", visible: true, latitude:38.7189, longitude: -77.1543},
+  { name: "Seneca Falls", visible: true, latitude: 42.9087, longitude: -76.798}
 ];
 
 @Injectable({
@@ -294,7 +295,7 @@ export class WeatherLayersService {
   }
 
   async getGridPoint(latitude: number, longitude: number): Promise<{ gridId: string, gridX: number, gridY: number } | undefined> {
-    const url = `/weather/points/${latitude},${longitude}`;
+    const url = `/weather/points/${parseFloat(latitude.toFixed(4))},${parseFloat(longitude.toFixed(4))}`;
     let gridPoint;
 
     try {
@@ -305,7 +306,7 @@ export class WeatherLayersService {
   
       gridPoint = { gridId, gridX, gridY }
     } catch(error) {
-      console.log('Error getting gridpoint');
+      console.log('Error getting gridpoint', error);
     };
 
     return gridPoint;

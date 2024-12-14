@@ -32,7 +32,8 @@ enum EventSeverityScale {
   MINOR = "0, 255, 0",
   MODERATE = "255, 255, 0",
   SEVERE = "255, 165, 0", 
-  EXTREME = "255, 69, 0"
+  EXTREME = "255, 69, 0",
+  UNKNOWN = "0, 100, 255"
 }
 
 const projection = 'EPSG:3857';
@@ -332,8 +333,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
   private styleEvent(feature: FeatureLike): Style {
     const properties = feature.getProperties();
-    const severity = properties['severity'];
-    const color = severity ? EventSeverityScale[severity.toUpperCase() as keyof typeof EventSeverityScale] : '0, 100, 255';
+    const severity = properties['severity']?.toUpperCase();
+    const color = severity ? EventSeverityScale[severity as keyof typeof EventSeverityScale] : '0, 100, 255';
     const style = new Style({
       fill: new Fill({
         color: `rgba(${color}, 0.2)`
