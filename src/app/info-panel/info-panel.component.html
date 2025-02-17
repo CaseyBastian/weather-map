@@ -5,6 +5,14 @@
     <div class="info-panel-content-container">
         <div id="info-panel-forecast" class="forecast-content" *ngIf="hasForecastData">
             <p> {{ getCurrentForecast.shortForecast }} </p>
+            <div *ngIf="isImpacted">
+                <span><b>Weather Advisory:</b></span>
+                <p>
+                    <b *ngFor="let evt of infoPanelData.impactingEvents">
+                        {{ evt.headline }}
+                    </b>
+                </p>
+            </div>
             <div class="current-weather-container">
                 <div class="current-weather">
                     <div class="column-1">

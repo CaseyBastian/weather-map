@@ -184,7 +184,8 @@ const forecastLayersArr: ForecastLayer[] = [
   { name: "Phoenix", visible: true, latitude: 33.4484, longitude: -112.0740 },
   { name: "New Orleans", visible: true, latitude: 29.9511, longitude: -90.0715 },
   { name: "Ft. Belvoir", visible: true, latitude:38.7189, longitude: -77.1543},
-  { name: "Seneca Falls", visible: true, latitude: 42.9087, longitude: -76.798}
+  { name: "Seneca Falls", visible: true, latitude: 42.9087, longitude: -76.798},
+  { name: "Impact Test", visible: true, latitude: 38.048, longitude: -84.5017}
 ];
 
 @Injectable({

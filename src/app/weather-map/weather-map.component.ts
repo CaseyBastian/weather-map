@@ -27,6 +27,8 @@ import {
   RainViewerApiData
 } from '../services/weather-layers.service';
 import { InfoPanelService, InfoType } from '../services/info-panel.service';
+import { Geometry, Polygon } from 'ol/geom';
+import { Extent } from 'ol/extent';
 
 enum EventSeverityScale {
   MINOR = "0, 255, 0",
@@ -34,6 +36,14 @@ enum EventSeverityScale {
   SEVERE = "255, 165, 0", 
   EXTREME = "255, 69, 0",
   UNKNOWN = "0, 100, 255"
+}
+
+interface NewProperties {
+  locationName: string;
+  hourlyForecast: any;
+  center: null | number[];
+  impacted: boolean;
+  impactingEvents: any[];
 }
 
 const projection = 'EPSG:3857';
@@ -60,6 +70,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   private forecastVisibilityState: Map<string, boolean> = new Map();
   private radarVisibilityState: Map<string, boolean> = new Map(); 
   private radarTileLayerMap: Map<string, TileLayer> = new Map();
+  private impactedLocations: Map<string, Feature> = new Map();
+  private allLocationsSource: VectorSource = new VectorSource();
 
   constructor(
     private weatherLayersService: WeatherLayersService,
@@ -115,8 +127,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
       const feature = this.map.forEachFeatureAtPixel(evt.pixel, (feat) => feat);
 
       if (feature) {
-        this.highlightEventLayer(feature);
-        this.showInfoPanel(feature);
+          this.highlightEventLayer(feature);
+          this.showInfoPanel(feature);
       }
     });
 
@@ -138,11 +150,30 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   private addForecastLayer(layerName: string, features: Feature[], hourlyForecast: any, visible: boolean = true): void {
     const vectorSource = new VectorSource({
       features: features.map(feature => {
+        const extent = feature.getGeometry()?.getExtent();
+        const newProperties : NewProperties = {
+          locationName: layerName,
+          hourlyForecast: hourlyForecast,
+          center: <null | number[]> null,
+          impacted: false,
+          impactingEvents:<any[]> []
+        };
+
+        if (extent)
+        {
+          const centerX = ((extent[0] + extent[2]) / 2);
+          const centerY = ((extent[1]+extent[3]) /2);
+          const center: [number, number] = [centerX, centerY];
+
+          newProperties.center = center;
+        }
+
         feature.setProperties({
           ...feature.getProperties(),
-          locationName: layerName,
-          hourlyForecast: hourlyForecast
+          ...newProperties
         });
+
+        this.allLocationsSource.addFeature(feature);
 
         return feature;
       })
@@ -303,6 +334,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   private addEventLayer(eventData: AlertApiResponse, eventType: string): void {
     const geoJSONFormat = new GeoJSON();
     const features = geoJSONFormat.readFeatures(eventData, { featureProjection: projection });
+
+    features.forEach((feat, idx) => 
+    {
+        this.findImpactedLocations(feat);
+    });
+
     const vectorSource = new VectorSource({
       features: features
     });
@@ -316,6 +353,34 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
     this.map.addLayer(vectorLayer);
     this.eventVectorLayerMap.set(eventType, vectorLayer);
     this.eventVisibilityState.set(eventType, true);
+  }
+
+  private findImpactedLocations(feature: Feature<Geometry>)
+  {
+    const geometry = feature.getGeometry();
+    const locations = this.allLocationsSource.getFeatures();
+    const properties = feature.getProperties();
+
+    locations.forEach((location) => 
+    {
+      const center = location.get('center');
+
+      if (center && geometry?.intersectsCoordinate(center))
+      {
+        const locProperties = location.getProperties() as NewProperties & {[key: string] : any};
+        const { impactingEvents: newImpactEvents, locationName } = locProperties;
+
+        newImpactEvents.push(properties);
+
+        location.setProperties({
+          ...locProperties,
+          impacted: true,
+          impactingEvents: newImpactEvents
+        });
+
+        this.impactedLocations.set(locationName, location);
+      }
+    });
   }
 
   private async toggleEventLayers(eventLayers: EventLayer[]): Promise<void> {
@@ -363,6 +428,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
     return `${dateString} at ${timeString}`;
   }
+  
   private buildEventContent(props: any): string {
     let content = '';
     const {
@@ -525,10 +591,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
   }
 
   private async loadLayers() {
-    const loadForecastLayers = this.debounceLayer(()=> this.loadForecastLayers(), 300);
-    const loadEventLayers = this.debounceLayer(()=> this.loadEventLayers(), 600);
-    const addNOAARadar = this.debounceLayer(()=> this.addNOAARadarLayer(), 900);
-    const addRainViewerRadar = this.debounceLayer(()=> this.addRVRadarLayer(), 2100);
+    const loadForecastLayers = this.debounceLayer(()=> this.loadForecastLayers(), 0);
+    const loadEventLayers = this.debounceLayer(()=> this.loadEventLayers(), 5000);
+    const addNOAARadar = this.debounceLayer(()=> this.addNOAARadarLayer(), 10000);
+    const addRainViewerRadar = this.debounceLayer(()=> this.addRVRadarLayer(), 15000);
 
     loadForecastLayers();
     loadEventLayers();

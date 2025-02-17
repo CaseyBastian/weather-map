@@ -54,6 +54,12 @@ export class InfoPanelComponent implements AfterViewInit, OnDestroy{
     return hours;
   }
 
+  get isImpacted(): boolean
+  {
+    console.log(this.infoPanelData.impacted, this.infoPanelData.impactingEvents.length > 0);
+    return this.infoPanelData.impacted && this.infoPanelData.impactingEvents.length > 0;
+  }
+
   get hasInfoPanelData(): boolean {
     return !!this.infoPanelType && !!this.infoPanelData;
   }
