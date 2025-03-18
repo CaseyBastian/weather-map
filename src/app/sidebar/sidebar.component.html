@@ -1,38 +1,62 @@
 <div class="sidebar" [class.hidden]="!sidebarVisible">
-    <div class="sidebar-header">
-        <mat-icon class="toggle-button" (click)="toggleSidebar()">menu</mat-icon>
-    </div>
-    <div class="sidebar-content">
-        <mat-expansion-panel>
-            <mat-expansion-panel-header>
-                <div class="category-header"><b>Weather Stations and POIs</b></div>
-            </mat-expansion-panel-header>
-            <ul>
-                <li *ngFor="let layer of forecastLayers$ | async">
-                    <input type="checkbox" [checked]="layer.visible"
-                        (change)="toggleLayerVisibility(sourceLayerType.FORECAST, layer.name)" />
-                    {{ layer.name }}
-                </li>
-            </ul>
-        </mat-expansion-panel>
-        <div class="category-header"><b>Radar Source</b></div>
-        <ul *ngIf="(radarLayers$ | async);">
-            <li *ngFor="let layer of radarLayers">
-                <input type="radio" name="radarLayer" [value]="layer.name" [checked]="layer.visible"
-                    (change)="toggleLayerVisibility(sourceLayerType.RADAR, layer.name)" />
-                {{ layer.name }}
-            </li>
-        </ul>
-        <div class="category-header"><b>Weather Alerts</b></div>
-        <ul *ngIf="(eventLayers$ | async); else no_weather_events">
-            <li *ngFor="let layer of eventLayers">
-                <input type="checkbox" [checked]="layer.visible"
-                    (change)="toggleLayerVisibility(sourceLayerType.EVENT, layer.name)" />
-                {{ layer.name }}
-            </li>
-        </ul>
-        <ng-template #no_weather_events>
-            <p>No Weather Events Available</p>
-        </ng-template>
-    </div>
+	<div class="sidebar-header">
+		<mat-icon class="toggle-button" (click)="toggleSidebar()"
+			>menu</mat-icon
+		>
+	</div>
+	<div class="sidebar-content">
+		<mat-expansion-panel>
+			<mat-expansion-panel-header>
+				<div class="category-header">
+					<b>Weather Stations and POIs</b>
+				</div>
+			</mat-expansion-panel-header>
+			<ul>
+				<li *ngFor="let layer of forecastLayers$ | async">
+					<input
+						type="checkbox"
+						[checked]="layer.visible"
+						(change)="
+							toggleLayerVisibility(
+								sourceLayerType.FORECAST,
+								layer.name
+							)
+						"
+					/>
+					{{ layer.name }}
+				</li>
+			</ul>
+		</mat-expansion-panel>
+		<div class="category-header"><b>Radar Source</b></div>
+		<ul *ngIf="radarLayers$ | async">
+			<li *ngFor="let layer of radarLayers">
+				<input
+					type="radio"
+					name="radarLayer"
+					[value]="layer.name"
+					[checked]="layer.visible"
+					(change)="
+						toggleLayerVisibility(sourceLayerType.RADAR, layer.name)
+					"
+				/>
+				{{ layer.name }}
+			</li>
+		</ul>
+		<div class="category-header"><b>Weather Alerts</b></div>
+		<ul *ngIf="eventLayers$ | async; else no_weather_events">
+			<li *ngFor="let layer of eventLayers">
+				<input
+					type="checkbox"
+					[checked]="layer.visible"
+					(change)="
+						toggleLayerVisibility(sourceLayerType.EVENT, layer.name)
+					"
+				/>
+				{{ layer.name }}
+			</li>
+		</ul>
+		<ng-template #no_weather_events>
+			<p>No Weather Events Available</p>
+		</ng-template>
+	</div>
 </div>

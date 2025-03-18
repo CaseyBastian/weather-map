@@ -1,38 +1,38 @@
 {
-  "/weather": {
-    "target": "https://api.weather.gov",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug",
-    "pathRewrite": {
-      "^/weather": ""
-    }
-  },
-  "/noaa": {
-    "target": "https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug",
-    "pathRewrite": {
-      "^/noaa": ""
-    }
-  },
-  "/rvTileCache": {
-    "target": "https://tilecache.rainviewer.com",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug",
-    "pathRewrite": {
-      "^/rvTileCache": ""
-    }
-  },
-  "/rvAPI": {
-    "target": "https://api.rainviewer.com/public/weather-maps.json",
-    "secure": false,
-    "changeOrigin": true,
-    "logLevel": "debug",
-    "pathRewrite": {
-      "^/rvAPI": ""
-    }
-  }
+	"/weather": {
+		"target": "https://api.weather.gov",
+		"secure": false,
+		"changeOrigin": true,
+		"logLevel": "debug",
+		"pathRewrite": {
+			"^/weather": ""
+		}
+	},
+	"/noaa": {
+		"target": "https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows",
+		"secure": false,
+		"changeOrigin": true,
+		"logLevel": "debug",
+		"pathRewrite": {
+			"^/noaa": ""
+		}
+	},
+	"/rvTileCache": {
+		"target": "https://tilecache.rainviewer.com",
+		"secure": false,
+		"changeOrigin": true,
+		"logLevel": "debug",
+		"pathRewrite": {
+			"^/rvTileCache": ""
+		}
+	},
+	"/rvAPI": {
+		"target": "https://api.rainviewer.com/public/weather-maps.json",
+		"secure": false,
+		"changeOrigin": true,
+		"logLevel": "debug",
+		"pathRewrite": {
+			"^/rvAPI": ""
+		}
+	}
 }
