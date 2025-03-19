@@ -21,6 +21,7 @@
 		"@angular/platform-browser-dynamic": "^18.2.0",
 		"@angular/router": "^18.2.0",
 		"d3": "^7.9.0",
+		"d3-geo": "^3.1.1",
 		"ol": "^10.2.1",
 		"rxjs": "~7.8.0",
 		"tslib": "^2.3.0",
