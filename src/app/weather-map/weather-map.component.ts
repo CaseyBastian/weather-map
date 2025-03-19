@@ -45,12 +45,20 @@ import { Coordinate } from 'ol/coordinate';
 import LayerGroup from 'ol/layer/Group';
 import { environment } from '../../environments/environment';
 
-enum EventSeverityScale {
+enum EventSeverityColorScale {
 	MINOR = '0, 255, 0',
 	MODERATE = '255, 255, 0',
 	SEVERE = '255, 165, 0',
 	EXTREME = '255, 69, 0',
 	UNKNOWN = '0, 100, 255',
+}
+
+enum EventSeverityZIndex {
+	EXTREME = 4,
+	SEVERE = 3,
+	MODERATE = 2,
+	MINOR = 1,
+	UNKNOWN = 0,
 }
 
 interface NewProperties {
@@ -125,9 +133,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				this.toggleRadarLayers(radarLayers);
 			});
 
-		this.reloadIntervalId = setInterval(() => {
-			console.log('Interval Refresh');
-		}, 300000);
+		this.reloadIntervalId = setInterval(() => {}, 300000);
 	}
 
 	ngOnDestroy(): void {
@@ -536,9 +542,14 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const properties = feature.getProperties();
 		const severity = properties['severity']?.toUpperCase();
 		const color = severity
-			? EventSeverityScale[severity as keyof typeof EventSeverityScale]
+			? EventSeverityColorScale[
+					severity as keyof typeof EventSeverityColorScale
+			  ]
 			: '0, 100, 255';
 		const style = new Style({
+			zIndex: EventSeverityZIndex[
+				severity as keyof typeof EventSeverityZIndex
+			],
 			fill: new Fill({
 				color: `rgba(${color}, 0.2)`,
 			}),
@@ -737,8 +748,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const center = fromLonLat([longitude, latitude]);
 		let overlay = this.markerOverlayMap.get(locationName);
 
-		console.log('location:', locationName, longitude, latitude);
-
 		if (!overlay) {
 			const iconElement = this.renderer.createElement('div');
 			this.renderer.addClass(iconElement, 'marker-icon-wrapper');
@@ -808,8 +817,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	}
 
 	private handleMarkerClick(location: GeoPathLocation) {
-		console.log('Location:', location.locationName);
-
 		this.lastLocation = location;
 
 		const otherLocations = this.geoPathService.locations.filter(

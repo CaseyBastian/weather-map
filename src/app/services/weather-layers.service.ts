@@ -389,7 +389,7 @@ export class WeatherLayersService {
 
 			gridPoint = { gridId, gridX, gridY };
 		} catch (error) {
-			console.log('Error getting gridpoint', error);
+			throw error;
 		}
 
 		return gridPoint;
@@ -402,7 +402,8 @@ export class WeatherLayersService {
 		try {
 			response = await lastValueFrom(this.http.get(url));
 		} catch (error) {
-			console.log('Error fetching RainViewer Radar');
+			console.error('Error fetching RainViewer Radar');
+			throw error;
 		}
 
 		return response;
@@ -419,7 +420,8 @@ export class WeatherLayersService {
 		try {
 			response = await lastValueFrom(this.http.get(url));
 		} catch (error) {
-			console.log('Error fetching forecast for gridpoint');
+			console.error('Error fetching forecast for gridpoint');
+			throw error;
 		}
 
 		return response;
@@ -436,13 +438,14 @@ export class WeatherLayersService {
 		try {
 			response = await lastValueFrom(this.http.get(url));
 		} catch (error) {
-			console.log(
+			console.error(
 				`Error fetching hourly forecast for gridpoint for ${JSON.stringify(
 					gridPoint,
 					null,
 					2
 				)}`
 			);
+			throw error;
 		}
 
 		return response;
@@ -455,7 +458,8 @@ export class WeatherLayersService {
 		try {
 			response = await lastValueFrom(this.http.get(url));
 		} catch (error) {
-			console.log('Error fetching weather events');
+			console.error('Error fetching weather events');
+			throw error;
 		}
 
 		return response;
