@@ -38,11 +38,11 @@ import {
 	RainViewerApiData,
 } from '../services/weather-layers.service';
 import { InfoPanelService, InfoType } from '../services/info-panel.service';
-import { Geometry, Polygon } from 'ol/geom';
+import { Geometry, Polygon, Circle as CircleGeom } from 'ol/geom';
 import { Extent } from 'ol/extent';
 import { GeoPathLocation, GeoPathService } from '../services/geo-path.service';
 import { Coordinate } from 'ol/coordinate';
-import { environment } from '../../environments/environment';
+import LayerGroup from 'ol/layer/Group';
 
 enum EventSeverityScale {
 	MINOR = '0, 255, 0',
@@ -89,7 +89,11 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private radarVisibilityState: Map<string, boolean> = new Map();
 	private radarTileLayerMap: Map<string, TileLayer> = new Map();
 	private impactedLocations: Map<string, Feature> = new Map();
+	private markerOverlayDict = new Map<string, Overlay>();
 	private allLocationsSource: VectorSource = new VectorSource();
+
+	private markerVectorLayers: LayerGroup = new LayerGroup({ layers: [] });
+	private lastLocation: GeoPathLocation | undefined;
 
 	constructor(
 		private element: ElementRef<HTMLElement>,
@@ -137,23 +141,31 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private initializeMap(): void {
 		const mapElement = this.mapElement.nativeElement;
 
-		const primarySource = new XYZ({
-			url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
-		});
-
-		const secondarySource = new OSM();
-
-		const baseLayer = new TileLayer({
-			source: primarySource,
+		const osmLayer = new TileLayer({
+			source: new OSM(),
 		});
 
 		this.map = new OLMap({
 			target: mapElement,
-			layers: [baseLayer],
+			layers: [osmLayer, this.markerVectorLayers],
 			view: new View({
 				center: fromLonLat(this.USCenterLongLat),
 				zoom: 5,
 			}),
+		});
+
+		this.map.on('movestart', () => {
+			const svgElement = this.svgOverlay.nativeElement;
+			const svg = d3.select(svgElement);
+
+			svg.selectAll('path').style('visibility', 'hidden');
+		});
+		this.map.on('moveend', () => {
+			const svgElement = this.svgOverlay.nativeElement;
+			const svg = d3.select(svgElement);
+
+			svg.selectAll('path').style('visibility', 'visible');
+			this.updatePaths();
 		});
 
 		this.map.on('pointermove', (evt) => {
@@ -163,18 +175,15 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			);
 
 			if (feature) {
+				const properties = feature.getProperties();
+				const { type } = properties;
+
+				if (type && type === 'marked-location') {
+					return;
+				}
+
 				this.highlightEventLayer(feature);
-				// this.showInfoPanel(feature);
-			} else {
-				this.eventVectorLayerMap.forEach((vectorLayer) => {
-					const layerFeatures = vectorLayer
-						.getSource()
-						?.getFeatures();
-					layerFeatures?.forEach((layerFeature) => {
-						const defaultStyle = this.styleEvent(layerFeature);
-						layerFeature.setStyle(defaultStyle);
-					});
-				});
+				this.showInfoPanel(feature);
 			}
 		});
 
@@ -183,10 +192,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				evt.pixel,
 				(feat) => feat
 			);
-			if (feature) {
-				// this.highlightEventLayer(feature);
-				this.showInfoPanel(feature);
-			} else {
+			if (!feature) {
 				this.infoPanelService.setInfoPanelVisibility(false);
 				this.eventVectorLayerMap.forEach((vectorLayer) => {
 					const layerFeatures = vectorLayer
@@ -197,12 +203,19 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 						layerFeature.setStyle(defaultStyle);
 					});
 				});
+
+				this.clearPaths();
+			}
+
+			if (feature) {
+				const properties = feature.getProperties();
+				const { type, location } = properties;
+
+				if (type && type === 'marked-location') {
+					this.handleMarkerClick(location);
+				}
 			}
 		});
-
-		primarySource.on('tileloaderror', () =>
-			baseLayer.setSource(secondarySource)
-		);
 	}
 
 	private addLocationMarkers() {
@@ -672,7 +685,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const rvAPIData: RainViewerApiData =
 			await this.weatherLayersService.fetchRainViewerAPI();
 		const nowcast = rvAPIData.radar.nowcast[0];
-		const url = `${environment.rvTileCacheUrl}${nowcast.path}/256/{z}/{x}/{y}/1/0_0.png`;
+		const url = `/rvTileCache${nowcast.path}/256/{z}/{x}/{y}/1/0_0.png`;
 
 		const source = new XYZ({
 			url: url,
@@ -693,7 +706,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 	private addNOAARadarLayer(): void {
 		const radarSource = new TileWMS({
-			url: environment.noaaApiUrl,
+			url: '/noaa',
 			params: {
 				LAYERS: 'conus_bref_qcd',
 				TILED: true,
@@ -722,10 +735,11 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const center = fromLonLat([longitude, latitude]);
 		let overlay = this.markerOverlayMap.get(locationName);
 
-		// console.log('location:', locationName, longitude, latitude);
+		console.log('location:', locationName, longitude, latitude);
 
 		if (!overlay) {
 			const iconElement = this.renderer.createElement('div');
+			this.renderer.addClass(iconElement, 'marker-icon-wrapper');
 			this.renderer.setStyle(iconElement, 'position', 'absolute');
 			this.renderer.setStyle(
 				iconElement,
@@ -733,17 +747,21 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				'translate(-50%, -100%)'
 			);
 
-			const placeIcon = this.renderer.createElement('mat-icon');
-			this.renderer.setStyle(placeIcon, 'color', 'limegreen');
-			this.renderer.setStyle(placeIcon, 'fontSize', '24px');
+			const icon = this.renderer.createElement('mat-icon');
+			this.renderer.setStyle(icon, 'color', 'limegreen');
+			this.renderer.setStyle(icon, 'fontSize', '24px');
+			this.renderer.addClass(icon, 'mat-icon');
+			this.renderer.addClass(icon, 'material-icons');
+			this.renderer.addClass(icon, 'marker-icon');
 			this.renderer.appendChild(
-				placeIcon,
+				icon,
 				this.renderer.createText('location_on')
 			);
-			this.renderer.addClass(placeIcon, 'mat-icon');
-			this.renderer.addClass(placeIcon, 'material-icons');
 
-			this.renderer.appendChild(iconElement, placeIcon);
+			const pulseCircle = this.renderer.createElement('div');
+			this.renderer.addClass(pulseCircle, 'pulse-circle');
+			this.renderer.appendChild(iconElement, pulseCircle);
+			this.renderer.appendChild(iconElement, icon);
 
 			overlay = new Overlay({
 				element: iconElement,
@@ -751,18 +769,46 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			});
 
 			overlay.setPosition(center);
-
-			this.markerOverlayMap.set(locationName, overlay);
+			this.markerOverlayDict.set(locationName, overlay);
 			this.map.addOverlay(overlay);
 
-			this.renderer.listen(iconElement, 'click', () => {
-				this.handleMarkerClick(location);
+			const circleGeom = new CircleGeom(center, 20000);
+
+			const feature = new Feature({
+				geometry: circleGeom,
+				type: 'marked-location',
+				location,
 			});
+
+			const style = new Style({
+				fill: new Fill({
+					color: 'rgba(0,0,0,0)',
+				}),
+				stroke: new Stroke({
+					color: 'black',
+					width: 2,
+				}),
+			});
+
+			feature.set('type', 'marked-location');
+			feature.setStyle(style);
+
+			const vectorSource = new VectorSource({
+				features: [feature],
+			});
+
+			const vectorLayer = new VectorLayer({
+				source: vectorSource,
+			});
+
+			this.markerVectorLayers.getLayers().push(vectorLayer);
 		}
 	}
 
 	private handleMarkerClick(location: GeoPathLocation) {
-		// console.log('Location:', location.locationName);
+		console.log('Location:', location.locationName);
+
+		this.lastLocation = location;
 
 		const otherLocations = this.geoPathService.locations.filter(
 			(loc) => location.locationName !== loc.locationName
@@ -779,46 +825,73 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 		d3.select(svgElement).selectAll('*').remove();
 
+		const svg = d3.select(svgElement);
 		const { clientWidth: width, clientHeight: height } = svgElement;
 		const view = this.map.getView();
 		const center = view.getCenter();
 		const zoom = view.getZoom();
-
-		const projection = geoMercator()
-			.scale(500 * Math.pow(2, zoom as number))
-			.center(center as [number, number])
-			.translate([width / 2, height / 2]);
-		const transform = (coords: [number, number]): [number, number] => {
-			return projection(coords) as [number, number];
-		};
+		const start: [number, number] = [
+			selectedLocation.longitude,
+			selectedLocation.latitude,
+		];
+		const startPixel = this.map.getPixelFromCoordinate(
+			fromLonLat(start)
+		) as [number, number];
 
 		otherLocations.forEach((location) => {
-			const start: [number, number] = transform([
-				selectedLocation.longitude,
-				selectedLocation.latitude,
-			]);
-			const end: [number, number] = transform([
+			const end: [number, number] = [
 				location.longitude,
 				location.latitude,
-			]);
-			const startPixel = projection(start);
-			const endPixel = projection(end);
+			];
+			const endPixel = this.map.getPixelFromCoordinate(
+				fromLonLat(end)
+			) as [number, number];
 
-			if (startPixel && endPixel) {
-				const arcPath = `M${startPixel[0]},${startPixel[1]} L${endPixel[0]},${endPixel[1]}`;
-
-				// console.log('startPixel:', startPixel);
-				// console.log('endPixel:', endPixel);
-				// console.log('arcPath', arcPath);
-
-				d3.select(svgElement)
-					.append('path')
-					.attr('d', arcPath)
-					.attr('stroke', 'black')
-					.attr('stroke-width', 2)
-					.attr('fill', 'none');
+			if (!startPixel || !endPixel) {
+				return;
 			}
+
+			const arcHeight = 60;
+			const midPointX = (startPixel[0] + endPixel[0]) / 2;
+			const midPointY = Math.min(startPixel[1], endPixel[1]) - arcHeight;
+
+			const lineData: [number, number][] = [
+				[startPixel[0], startPixel[1]],
+				[midPointX, midPointY],
+				[endPixel[0], endPixel[1]],
+			];
+
+			const lineGenerator = d3
+				.line()
+				.curve(d3.curveBasis)
+				.x((d) => d[0])
+				.y((d) => d[1]);
+
+			svg.append('path')
+				.datum(lineData)
+				.attr('class', 'curved-line')
+				.attr('stroke', 'black')
+				.attr('stroke-width', 2)
+				.attr('fill', 'none')
+				.attr('d', lineGenerator);
 		});
+	}
+
+	updatePaths() {
+		if (this.lastLocation) {
+			const otherLocations = this.geoPathService.locations.filter(
+				(loc) => this.lastLocation!.locationName !== loc.locationName
+			);
+
+			this.drawArcs(this.lastLocation, otherLocations);
+		} else return;
+	}
+
+	clearPaths() {
+		const svgElement = this.svgOverlay.nativeElement;
+
+		d3.select(svgElement).selectAll('*').remove();
+		this.lastLocation = undefined;
 	}
 
 	delayRequest(ms: number) {
@@ -840,26 +913,26 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		);
 		const loadEventLayers = this.debounceLayer(
 			() => this.loadEventLayers(),
-			500
+			5000
 		);
 		const addNOAARadar = this.debounceLayer(
 			() => this.addNOAARadarLayer(),
-			1000
+			10000
 		);
 		const addRainViewerRadar = this.debounceLayer(
 			() => this.addRVRadarLayer(),
-			1500
+			15000
 		);
 		const pathMarkerLayers = this.debounceLayer(
 			() => this.addLocationMarkers(),
-			1500
+			15000
 		);
 
 		loadForecastLayers();
 		loadEventLayers();
 		addNOAARadar();
 		addRainViewerRadar();
-		// pathMarkerLayers();
+		pathMarkerLayers();
 	}
 
 	@HostListener('window:resize', ['$event'])

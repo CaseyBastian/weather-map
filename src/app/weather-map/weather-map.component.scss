@@ -25,3 +25,71 @@
 	z-index: 2;
 	pointer-events: none;
 }
+
+.marker-icon-wrapper {
+	position: relative;
+	display: inline-block;
+	pointer-events: none;
+}
+
+.marker-icon {
+	cursor: pointer;
+	position: relative;
+	display: inline-block;
+}
+
+.pulse-circle {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	background: rgba(0, 255, 255, 0.3);
+	transform: translate(-50%, -50%);
+	opacity: 0;
+	pointer-events: none;
+}
+
+@keyframes pulse-animation {
+	0% {
+		transform: scale(1);
+	}
+
+	50% {
+		transform: scale(1.5);
+	}
+
+	100% {
+		transform: scale(1);
+	}
+}
+
+@keyframes radiate {
+	0% {
+		width: 0;
+		height: 0;
+		opacity: 1;
+	}
+
+	50% {
+		width: 150%;
+		height: 150%;
+		opacity: 1;
+	}
+
+	100% {
+		width: 200%;
+		height: 200%;
+		opacity: 0;
+	}
+}
+
+.marker-icon-wrapper:active .marker-icon {
+	animation: pulse-animation 0.1s ease-out;
+}
+
+.marker-icon-wrapper:active .pulse-circle {
+	opacity: 1;
+	animation: radiate 0.1s ease-out forwards;
+}
