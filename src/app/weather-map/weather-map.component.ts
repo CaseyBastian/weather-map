@@ -722,7 +722,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const center = fromLonLat([longitude, latitude]);
 		let overlay = this.markerOverlayMap.get(locationName);
 
-		console.log('location:', locationName, longitude, latitude);
+		// console.log('location:', locationName, longitude, latitude);
 
 		if (!overlay) {
 			const iconElement = this.renderer.createElement('div');
@@ -762,7 +762,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	}
 
 	private handleMarkerClick(location: GeoPathLocation) {
-		console.log('Location:', location.locationName);
+		// console.log('Location:', location.locationName);
 
 		const otherLocations = this.geoPathService.locations.filter(
 			(loc) => location.locationName !== loc.locationName
@@ -807,9 +807,9 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			if (startPixel && endPixel) {
 				const arcPath = `M${startPixel[0]},${startPixel[1]} L${endPixel[0]},${endPixel[1]}`;
 
-				console.log('startPixel:', startPixel);
-				console.log('endPixel:', endPixel);
-				console.log('arcPath', arcPath);
+				// console.log('startPixel:', startPixel);
+				// console.log('endPixel:', endPixel);
+				// console.log('arcPath', arcPath);
 
 				d3.select(svgElement)
 					.append('path')

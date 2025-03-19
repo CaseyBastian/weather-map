@@ -55,10 +55,10 @@ export class InfoPanelComponent implements AfterViewInit, OnDestroy {
 	}
 
 	get isImpacted(): boolean {
-		console.log(
-			this.infoPanelData.impacted,
-			this.infoPanelData.impactingEvents.length > 0,
-		);
+		// console.log(
+		// 	this.infoPanelData.impacted,
+		// 	this.infoPanelData.impactingEvents.length > 0,
+		// );
 		return (
 			this.infoPanelData.impacted &&
 			this.infoPanelData.impactingEvents.length > 0
@@ -92,12 +92,12 @@ export class InfoPanelComponent implements AfterViewInit, OnDestroy {
 		const startDate = new Date(
 			today.getFullYear(),
 			today.getMonth(),
-			today.getDate(),
+			today.getDate()
 		);
 		const endDate = new Date(
 			today.getFullYear(),
 			today.getMonth(),
-			today.getDate() + 1,
+			today.getDate() + 1
 		);
 		return this.infoPanelData.periods.filter((period: any) => {
 			const periodDate = new Date(period.startTime);
