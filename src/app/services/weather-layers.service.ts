@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, lastValueFrom } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 enum FeatureType {
 	Feature = 'Feature',
@@ -247,13 +248,13 @@ const forecastLayersArr: ForecastLayer[] = [
 })
 export class WeatherLayersService {
 	private forecastLayersSource = new BehaviorSubject<ForecastLayer[]>(
-		forecastLayersArr,
+		forecastLayersArr
 	);
 	private eventLayersSource = new BehaviorSubject<EventLayer[]>(
-		eventLayersArr,
+		eventLayersArr
 	);
 	private radarLayersSource = new BehaviorSubject<EventLayer[]>(
-		radarLayersArr,
+		radarLayersArr
 	);
 
 	forecastLayers$ = this.forecastLayersSource.asObservable();
@@ -307,7 +308,7 @@ export class WeatherLayersService {
 		const observedEventLayers = this.eventLayersSource.getValue();
 		const mergedArray = eventResults.map((eventObj) => {
 			const eventExists = observedEventLayers.find(
-				(eventLayer) => eventLayer.name === eventObj.name,
+				(eventLayer) => eventLayer.name === eventObj.name
 			);
 
 			if (eventExists) {
@@ -322,7 +323,7 @@ export class WeatherLayersService {
 		});
 
 		const cleanedEventLayers = observedEventLayers.filter((eventLayer) =>
-			eventResults.some((eventObj) => eventObj.name === eventLayer.name),
+			eventResults.some((eventObj) => eventObj.name === eventLayer.name)
 		);
 
 		const finalEventLayers = [...cleanedEventLayers, ...mergedArray];
@@ -332,14 +333,14 @@ export class WeatherLayersService {
 
 	toggleLayerVisibility(
 		sourceType: SourceLayerType,
-		layerName: string,
+		layerName: string
 	): void {
 		if (sourceType === SourceLayerType.FORECAST) {
 			const layers = this.forecastLayersSource.value;
 			const updatedLayers: ForecastLayer[] = layers.map((layer) =>
 				layer.name === layerName
 					? { ...layer, visible: !layer.visible }
-					: layer,
+					: layer
 			);
 			this.forecastLayersSource.next(updatedLayers);
 		} else if (sourceType === SourceLayerType.EVENT) {
@@ -347,7 +348,7 @@ export class WeatherLayersService {
 			const updatedLayers: EventLayer[] = layers.map((layer) =>
 				layer.name === layerName
 					? { ...layer, visible: !layer.visible }
-					: layer,
+					: layer
 			);
 			this.eventLayersSource.next(updatedLayers);
 		} else if (sourceType === SourceLayerType.RADAR) {
@@ -355,14 +356,14 @@ export class WeatherLayersService {
 			const updatedLayers: EventLayer[] = layers.map((layer) =>
 				layer.name === layerName
 					? { ...layer, visible: true }
-					: { ...layer, visible: false },
+					: { ...layer, visible: false }
 			);
 			this.radarLayersSource.next(updatedLayers);
 		}
 	}
 
 	getVisibleLayers(
-		SourceType: SourceLayerType,
+		SourceType: SourceLayerType
 	): ForecastLayer[] | EventLayer[] {
 		const values =
 			SourceType === SourceLayerType.EVENT
@@ -373,9 +374,11 @@ export class WeatherLayersService {
 
 	async getGridPoint(
 		latitude: number,
-		longitude: number,
+		longitude: number
 	): Promise<{ gridId: string; gridX: number; gridY: number } | undefined> {
-		const url = `/weather/points/${parseFloat(latitude.toFixed(4))},${parseFloat(longitude.toFixed(4))}`;
+		const url = `${environment.weatherApiUrl}/points/${parseFloat(
+			latitude.toFixed(4)
+		)},${parseFloat(longitude.toFixed(4))}`;
 		let gridPoint;
 
 		try {
@@ -393,7 +396,7 @@ export class WeatherLayersService {
 	}
 
 	async fetchRainViewerAPI(): Promise<RainViewerApiData | any> {
-		const url = '/rvAPI';
+		const url = environment.rainviewerUrl;
 		let response;
 
 		try {
@@ -410,7 +413,7 @@ export class WeatherLayersService {
 		gridX: number;
 		gridY: number;
 	}): Promise<GridPointResponse | any> {
-		const url = `/weather/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast`;
+		const url = `${environment.weatherApiUrl}/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast`;
 		let response;
 
 		try {
@@ -427,14 +430,18 @@ export class WeatherLayersService {
 		gridX: number;
 		gridY: number;
 	}): Promise<any> {
-		const url = `/weather/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast/hourly`;
+		const url = `${environment.weatherApiUrl}/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast/hourly`;
 		let response;
 
 		try {
 			response = await lastValueFrom(this.http.get(url));
 		} catch (error) {
 			console.log(
-				`Error fetching hourly forecast for gridpoint for ${JSON.stringify(gridPoint, null, 2)}`,
+				`Error fetching hourly forecast for gridpoint for ${JSON.stringify(
+					gridPoint,
+					null,
+					2
+				)}`
 			);
 		}
 
@@ -442,7 +449,7 @@ export class WeatherLayersService {
 	}
 
 	async fetchEventData(): Promise<AlertApiResponse | any> {
-		const url = '/weather/alerts/active';
+		const url = `${environment.weatherApiUrl}/alerts/active`;
 		let response;
 
 		try {

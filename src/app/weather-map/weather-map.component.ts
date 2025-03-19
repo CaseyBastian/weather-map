@@ -42,6 +42,7 @@ import { Geometry, Polygon } from 'ol/geom';
 import { Extent } from 'ol/extent';
 import { GeoPathLocation, GeoPathService } from '../services/geo-path.service';
 import { Coordinate } from 'ol/coordinate';
+import { environment } from '../../environments/environment';
 
 enum EventSeverityScale {
 	MINOR = '0, 255, 0',
@@ -671,7 +672,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const rvAPIData: RainViewerApiData =
 			await this.weatherLayersService.fetchRainViewerAPI();
 		const nowcast = rvAPIData.radar.nowcast[0];
-		const url = `/rvTileCache${nowcast.path}/256/{z}/{x}/{y}/1/0_0.png`;
+		const url = `${environment.rvTileCacheUrl}${nowcast.path}/256/{z}/{x}/{y}/1/0_0.png`;
 
 		const source = new XYZ({
 			url: url,
@@ -692,7 +693,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 	private addNOAARadarLayer(): void {
 		const radarSource = new TileWMS({
-			url: '/noaa',
+			url: environment.noaaApiUrl,
 			params: {
 				LAYERS: 'conus_bref_qcd',
 				TILED: true,
