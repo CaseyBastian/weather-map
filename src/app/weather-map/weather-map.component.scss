@@ -3,6 +3,7 @@
 	height: 100vh;
 	display: block;
 	position: relative;
+	background: var(--bg-surface);
 }
 
 #weather-map {
@@ -97,10 +98,6 @@
 .marker-icon-wrapper:active .pulse-circle {
 	opacity: 1;
 	animation: radiate 0.28s ease-out forwards;
-}
-
-:host ::ng-deep .basemap-layer {
-	filter: brightness(.58) saturate(.62) contrast(1.16) sepia(.08);
 }
 
 :host ::ng-deep .ol-zoom {

@@ -166,7 +166,27 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 		const osmLayer = new TileLayer({
 			className: 'basemap-layer',
+			preload: 2,
 			source: new OSM(),
+		});
+		osmLayer.on('prerender', (event) => {
+			const context = event.context;
+			if (!(context instanceof CanvasRenderingContext2D)) return;
+
+			context.save();
+			context.filter =
+				'invert(0.9) hue-rotate(180deg) brightness(0.62) contrast(1.18) saturate(0.38) sepia(0.12)';
+		});
+		osmLayer.on('postrender', (event) => {
+			const context = event.context;
+			if (!(context instanceof CanvasRenderingContext2D)) return;
+
+			context.restore();
+			context.save();
+			context.globalCompositeOperation = 'source-atop';
+			context.fillStyle = 'rgba(196, 132, 20, 0.055)';
+			context.fillRect(0, 0, context.canvas.width, context.canvas.height);
+			context.restore();
 		});
 		osmLayer.setZIndex(MapLayerZIndex.BASE);
 		this.markerVectorLayers.setZIndex(MapLayerZIndex.MARKERS);
