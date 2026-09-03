@@ -1,4 +1,20 @@
 <div id="map-container">
 	<div #mapElement id="weather-map" class="open-layer-map"></div>
 	<svg #svgOverlayElement id="svg-overlay"></svg>
+	<section class="radar-player" *ngIf="radarAnimationAvailable && rainViewerVisible" aria-label="Radar animation controls">
+		<div class="radar-player-header">
+			<div><span class="radar-live-dot"></span><strong>Radar loop</strong><span class="frame-kind">{{ currentRadarFrameKind }}</span></div>
+			<time>{{ currentRadarFrameLabel }}</time>
+		</div>
+		<div class="radar-controls">
+			<button type="button" (click)="stepRadarFrame(-1)" aria-label="Previous radar frame"><mat-icon aria-hidden="true">skip_previous</mat-icon></button>
+			<button class="play-button" type="button" (click)="toggleRadarAnimation()" [attr.aria-label]="radarAnimationPlaying ? 'Pause radar animation' : 'Play radar animation'">
+				<mat-icon aria-hidden="true">{{ radarAnimationPlaying ? 'pause' : 'play_arrow' }}</mat-icon>
+			</button>
+			<div class="frame-track" aria-label="Radar timeline">
+				<button *ngFor="let frame of radarFrames; let i = index" type="button" (click)="selectRadarFrame(i)" [class.elapsed]="i <= currentRadarFrameIndex" [class.active]="i === currentRadarFrameIndex" [attr.aria-label]="'Show radar frame ' + (i + 1)"></button>
+			</div>
+			<button type="button" (click)="stepRadarFrame(1)" aria-label="Next radar frame"><mat-icon aria-hidden="true">skip_next</mat-icon></button>
+		</div>
+	</section>
 </div>

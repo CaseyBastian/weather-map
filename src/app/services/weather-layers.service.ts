@@ -271,12 +271,12 @@ export class WeatherLayersService {
 		return this.eventLayersSource.value;
 	}
 
-	addRadarsToSource(radarName: string): void {
-		const radarLayers = this.radarLayersSource.getValue();
-		const newLayers = [
-			...radarLayers,
-			{ name: radarName, visible: radarName === RadarLayerNames.NOAA },
-		];
+	addRadarsToSource(radarName: string, visible: boolean): void {
+		const radarLayers = this.radarLayersSource
+			.getValue()
+			.filter((layer) => layer.name !== radarName)
+			.map((layer) => ({ ...layer, visible: visible ? false : layer.visible }));
+		const newLayers = [...radarLayers, { name: radarName, visible }];
 
 		this.radarLayersSource.next(newLayers);
 	}

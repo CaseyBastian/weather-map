@@ -112,6 +112,13 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private lastLocation: GeoPathLocation | undefined;
 	private hoveredFeature: FeatureLike | null = null;
 	private pointerMoveFrame: number | null = null;
+	private radarAnimationInterval: ReturnType<typeof setInterval> | null = null;
+	private radarPastFrameCount = 0;
+
+	radarFrames: Array<{ time: number; path: string }> = [];
+	currentRadarFrameIndex = 0;
+	radarAnimationPlaying = false;
+	radarAnimationAvailable = false;
 
 	constructor(
 		private element: ElementRef<HTMLElement>,
@@ -148,6 +155,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		if (this.pointerMoveFrame !== null) {
 			cancelAnimationFrame(this.pointerMoveFrame);
 		}
+		this.stopRadarAnimation();
 
 		this.destroy$.next();
 		this.destroy$.complete();
@@ -646,31 +654,119 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 					);
 				}
 			});
+
+			const rainViewerVisible =
+				radarLayers.find((layer) => layer.name === RadarLayerNames.RV)
+					?.visible ?? false;
+			if (rainViewerVisible && this.radarAnimationAvailable) {
+				this.startRadarAnimation();
+			} else {
+				this.stopRadarAnimation();
+			}
+		}
+	}
+
+	get currentRadarFrameLabel(): string {
+		const frame = this.radarFrames[this.currentRadarFrameIndex];
+		if (!frame) return 'Loading frames';
+		return new Date(frame.time * 1000).toLocaleTimeString('en-US', {
+			hour: 'numeric',
+			minute: '2-digit',
+		});
+	}
+
+	get currentRadarFrameKind(): string {
+		return this.currentRadarFrameIndex >= this.radarPastFrameCount
+			? 'Forecast'
+			: 'Observed';
+	}
+
+	get rainViewerVisible(): boolean {
+		return this.radarVisibilityState.get(RadarLayerNames.RV) === true;
+	}
+
+	toggleRadarAnimation(): void {
+		if (this.radarAnimationPlaying) {
+			this.stopRadarAnimation();
+		} else {
+			this.startRadarAnimation();
+		}
+	}
+
+	stepRadarFrame(direction: number): void {
+		this.stopRadarAnimation();
+		this.setRadarFrame(this.currentRadarFrameIndex + direction);
+	}
+
+	selectRadarFrame(index: number): void {
+		this.stopRadarAnimation();
+		this.setRadarFrame(index);
+	}
+
+	private startRadarAnimation(): void {
+		if (this.radarFrames.length < 2 || this.radarAnimationInterval) return;
+		this.radarAnimationPlaying = true;
+		this.radarAnimationInterval = setInterval(() => {
+			this.setRadarFrame(this.currentRadarFrameIndex + 1);
+		}, 650);
+	}
+
+	private stopRadarAnimation(): void {
+		if (this.radarAnimationInterval) {
+			clearInterval(this.radarAnimationInterval);
+			this.radarAnimationInterval = null;
+		}
+		this.radarAnimationPlaying = false;
+	}
+
+	private setRadarFrame(index: number): void {
+		if (!this.radarFrames.length) return;
+		const normalizedIndex =
+			(index + this.radarFrames.length) % this.radarFrames.length;
+		const frame = this.radarFrames[normalizedIndex];
+		const rainViewerLayer = this.radarTileLayerMap.get(RadarLayerNames.RV);
+		const source = rainViewerLayer?.getSource();
+
+		if (source instanceof XYZ) {
+			source.setUrl(
+				`${environment.rvTileCacheUrl}${frame.path}/256/{z}/{x}/{y}/1/0_0.png`
+			);
+			this.currentRadarFrameIndex = normalizedIndex;
 		}
 	}
 
 	private async addRVRadarLayer(): Promise<void> {
 		const rvAPIData: RainViewerApiData =
 			await this.weatherLayersService.fetchRainViewerAPI();
-		const nowcast = rvAPIData.radar.nowcast[0];
-		const url = `${environment.rvTileCacheUrl}${nowcast.path}/256/{z}/{x}/{y}/1/0_0.png`;
+		const pastFrames = rvAPIData.radar.past.slice(-8);
+		const nowcastFrames = rvAPIData.radar.nowcast.slice(0, 3);
+		this.radarFrames = [...pastFrames, ...nowcastFrames];
+		this.radarPastFrameCount = pastFrames.length;
+		this.radarAnimationAvailable = this.radarFrames.length > 1;
+		this.currentRadarFrameIndex = 0;
+		const firstFrame = this.radarFrames[0];
+		if (!firstFrame) return;
+		const url = `${environment.rvTileCacheUrl}${firstFrame.path}/256/{z}/{x}/{y}/1/0_0.png`;
 
 		const source = new XYZ({
 			url: url,
 			tileSize: 256,
+			transition: 180,
 		});
 
 		const radarLayer = new TileLayer({
 			source: source,
 			opacity: 0.6,
-			visible: false,
+			visible: true,
+			preload: 1,
 		});
 		radarLayer.setZIndex(MapLayerZIndex.RADAR);
 
-		this.weatherLayersService.addRadarsToSource(RadarLayerNames.RV);
 		this.map.addLayer(radarLayer);
 		this.radarTileLayerMap.set(RadarLayerNames.RV, radarLayer);
-		this.radarVisibilityState.set(RadarLayerNames.RV, false);
+		this.radarVisibilityState.set(RadarLayerNames.RV, true);
+		this.weatherLayersService.addRadarsToSource(RadarLayerNames.RV, true);
+		this.startRadarAnimation();
 	}
 
 	private addNOAARadarLayer(): void {
@@ -691,13 +787,14 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const radarLayer = new TileLayer({
 			source: radarSource,
 			opacity: 0.6,
+			visible: false,
 		});
 
-		this.weatherLayersService.addRadarsToSource(RadarLayerNames.NOAA);
 		radarLayer.setZIndex(MapLayerZIndex.RADAR);
 		this.map.addLayer(radarLayer);
 		this.radarTileLayerMap.set(RadarLayerNames.NOAA, radarLayer);
-		this.radarVisibilityState.set(RadarLayerNames.NOAA, true);
+		this.radarVisibilityState.set(RadarLayerNames.NOAA, false);
+		this.weatherLayersService.addRadarsToSource(RadarLayerNames.NOAA, false);
 	}
 
 	private createMarkerOverlay(location: GeoPathLocation): void {
