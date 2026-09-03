@@ -128,10 +128,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private eventInteractionStyleCache = new Map<string, Style[]>();
 	private radarAnimationInterval: ReturnType<typeof setInterval> | null = null;
 	private radarInteractionResumeTimer: ReturnType<typeof setTimeout> | null = null;
-	private radarTilesLoading = 0;
 	private radarInteractionPending = false;
 	private resumeRadarAfterInteraction = false;
-	private radarInteractionDeadline = 0;
 	private dataRefreshInterval: ReturnType<typeof setInterval> | null = null;
 	private refreshInFlight = false;
 	private lastAlertRefreshAt = 0;
@@ -883,9 +881,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		if (!this.rainViewerVisible) return;
 
 		this.radarViewUpdating = true;
+		if (!this.radarInteractionPending) {
+			this.resumeRadarAfterInteraction = this.radarAnimationPlaying;
+		}
 		this.radarInteractionPending = true;
-		this.resumeRadarAfterInteraction = this.radarAnimationPlaying;
-		this.radarInteractionDeadline = Date.now() + 1_200;
 		if (this.radarAnimationPlaying) this.stopRadarAnimation();
 		if (this.radarInteractionResumeTimer) {
 			clearTimeout(this.radarInteractionResumeTimer);
@@ -895,24 +894,15 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 	private prioritizeRadarForCurrentView(): void {
 		if (!this.radarInteractionPending || !this.rainViewerVisible) return;
-		this.map.renderSync();
 		this.scheduleRadarInteractionCompletion();
 	}
 
-	private scheduleRadarInteractionCompletion(delay = 90): void {
+	private scheduleRadarInteractionCompletion(delay = 180): void {
 		if (this.radarInteractionResumeTimer) {
 			clearTimeout(this.radarInteractionResumeTimer);
 		}
 		this.radarInteractionResumeTimer = setTimeout(() => {
 			this.radarInteractionResumeTimer = null;
-			if (
-				this.radarTilesLoading > 0 &&
-				Date.now() < this.radarInteractionDeadline
-			) {
-				this.scheduleRadarInteractionCompletion(80);
-				return;
-			}
-
 			const shouldResume =
 				this.resumeRadarAfterInteraction && this.rainViewerVisible;
 			this.radarInteractionPending = false;
@@ -930,20 +920,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		this.radarInteractionPending = false;
 		this.resumeRadarAfterInteraction = false;
 		this.radarViewUpdating = false;
-	}
-
-	private trackRadarTileLoading(source: XYZ): void {
-		source.on('tileloadstart', () => {
-			this.radarTilesLoading++;
-		});
-		const settleTile = () => {
-			this.radarTilesLoading = Math.max(0, this.radarTilesLoading - 1);
-			if (this.radarInteractionPending && this.radarTilesLoading === 0) {
-				this.scheduleRadarInteractionCompletion(60);
-			}
-		};
-		source.on('tileloadend', settleTile);
-		source.on('tileloaderror', settleTile);
 	}
 
 	private setRadarFrame(index: number): void {
@@ -974,14 +950,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			tileSize: 256,
 			transition: 80,
 		});
-		this.trackRadarTileLoading(source);
 
 		const radarLayer = new TileLayer({
 			source: source,
 			opacity: 0.6,
 			visible: true,
-			preload: 2,
-			cacheSize: 1024,
+			preload: 1,
 		});
 		radarLayer.setZIndex(MapLayerZIndex.RADAR);
 
