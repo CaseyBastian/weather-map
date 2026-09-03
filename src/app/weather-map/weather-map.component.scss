@@ -53,7 +53,7 @@
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
-	background: rgba(0, 255, 255, 0.3);
+	background: rgba(60, 184, 201, 0.3);
 	transform: translate(-50%, -50%) scale(0.4);
 	opacity: 0;
 	pointer-events: none;
@@ -99,16 +99,20 @@
 	animation: radiate 0.28s ease-out forwards;
 }
 
+:host ::ng-deep .basemap-layer {
+	filter: brightness(.58) saturate(.62) contrast(1.16) sepia(.08);
+}
+
 :host ::ng-deep .ol-zoom {
 	top: auto;
 	right: 16px;
 	bottom: 22px;
 	left: auto;
 	padding: 4px;
-	border: 1px solid rgba(255,255,255,.55);
+	border: 1px solid var(--line);
 	border-radius: 12px;
-	background: rgba(248,251,253,.9);
-	box-shadow: 0 8px 22px rgba(7,17,31,.16);
+	background: rgba(32,31,30,.94);
+	box-shadow: 0 8px 22px rgba(0,0,0,.36);
 	backdrop-filter: blur(12px);
 }
 
@@ -122,7 +126,7 @@
 	cursor: pointer;
 }
 
-:host ::ng-deep .ol-zoom button:hover { background: #dfecef; }
+:host ::ng-deep .ol-zoom button:hover { background: var(--bg-elevated); color: var(--accent-strong); }
 :host ::ng-deep .ol-attribution { font-size: 10px; }
 
 .radar-player {
@@ -132,10 +136,10 @@
 	bottom: 64px;
 	width: min(470px, calc(100vw - 40px));
 	padding: 11px 13px 12px;
-	border: 1px solid rgba(255,255,255,.62);
+	border: 1px solid var(--line);
 	border-radius: 15px;
-	background: rgba(248,251,253,.92);
-	box-shadow: 0 12px 32px rgba(7,17,31,.18);
+	background: rgba(26,27,28,.96);
+	box-shadow: 0 12px 32px rgba(0,0,0,.4);
 	backdrop-filter: blur(16px) saturate(140%);
 	transform: translateX(-50%);
 }
@@ -155,8 +159,8 @@
 
 .radar-player-header > div { gap: 7px; }
 .radar-player-header time { color: var(--ink-600); font-size: .66rem; font-weight: 700; }
-.radar-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #28a874; box-shadow: 0 0 0 4px rgba(40,168,116,.13); }
-.frame-kind { padding: 3px 6px; border-radius: 999px; background: #e6f1f3; color: var(--accent-strong); font-size: .58rem; font-weight: 800; text-transform: uppercase; }
+.radar-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-success-text); box-shadow: 0 0 0 4px rgba(143,193,122,.13); }
+.frame-kind { padding: 3px 6px; border-radius: 999px; background: var(--accent-surface); color: var(--accent-strong); font-size: .58rem; font-weight: 800; text-transform: uppercase; }
 
 .radar-controls { gap: 7px; }
 .radar-controls > button {
@@ -168,13 +172,13 @@
 	padding: 0;
 	border: 1px solid var(--line);
 	border-radius: 9px;
-	background: white;
+	background: var(--bg-card);
 	color: var(--ink-800);
 	cursor: pointer;
 	transition: transform var(--motion-fast), background var(--motion-fast);
 }
 
-.radar-controls > button:hover { background: #e6f1f3; }
+.radar-controls > button:hover { background: var(--bg-elevated); color: var(--accent-strong); }
 .radar-controls > button:active { transform: scale(.94); }
 .radar-controls > .play-button { width: 34px; height: 34px; border: 0; background: var(--accent); color: white; }
 .radar-controls > .play-button:hover { background: var(--accent-strong); }
@@ -195,13 +199,13 @@
 	padding: 0;
 	border: 0;
 	border-radius: 999px;
-	background: #cfdbe1;
+	background: #4a4740;
 	cursor: pointer;
 	transition: height var(--motion-fast), background var(--motion-fast);
 }
 
-.frame-track button.elapsed { background: #73b8c5; }
-.frame-track button.active { height: 9px; background: var(--accent); box-shadow: 0 0 0 3px rgba(23,107,135,.13); }
+.frame-track button.elapsed { background: #8a611a; }
+.frame-track button.active { height: 9px; background: var(--accent); box-shadow: 0 0 0 3px rgba(196,132,20,.18); }
 
 @media (max-width: 720px) {
 	.radar-player { bottom: 58px; width: min(420px, calc(100vw - 20px)); }

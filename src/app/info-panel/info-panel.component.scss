@@ -7,7 +7,7 @@
 	max-height: calc(100vh - 110px);
 	overflow: auto;
 	padding: 24px;
-	border: 1px solid rgba(255,255,255,.62);
+	border: 1px solid var(--line);
 	border-radius: var(--radius-lg);
 	background: var(--surface);
 	box-shadow: var(--shadow-panel);
@@ -39,11 +39,11 @@
 	padding: 0;
 	border: 1px solid var(--line);
 	border-radius: 11px;
-	background: #eef4f7;
+	background: var(--bg-card);
 	color: var(--ink-800);
 	cursor: pointer;
 }
-.close-button:hover { background: #dfecef; }
+.close-button:hover { background: var(--bg-elevated); color: var(--accent-strong); }
 .close-button mat-icon { width: 19px; height: 19px; font-size: 19px; }
 
 .panel-header { padding-right: 44px; margin-bottom: 20px; }
@@ -51,20 +51,20 @@
 .panel-header h2 { margin: 4px 0 5px; font-size: 1.55rem; line-height: 1.12; letter-spacing: -.04em; }
 .panel-header p { margin: 0; color: var(--ink-600); font-size: .83rem; }
 
-.advisory { display: flex; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px solid #f4c978; border-radius: 12px; background: #fff7e7; color: #70440b; }
+.advisory { display: flex; gap: 10px; margin-bottom: 16px; padding: 12px; border: 1px solid var(--gold, #c48414); border-radius: 12px; background: var(--status-warning-bg); color: var(--status-warning-text); }
 .advisory mat-icon { flex: 0 0 auto; font-size: 19px; }
 .advisory div { display: flex; flex-direction: column; gap: 3px; }
 .advisory strong { font-size: .78rem; }
 .advisory span { font-size: .7rem; line-height: 1.35; }
 
 .current-weather { display: grid; grid-template-columns: 1.15fr 1fr; gap: 12px; }
-.temperature-block { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 16px; border-radius: 15px; background: linear-gradient(145deg, #0e435c, #176b87); color: white; }
+.temperature-block { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 16px; border-radius: 15px; background: linear-gradient(145deg, #65491f, #c48414); color: #0e0f11; }
 .temperature-block img { width: 58px; height: 58px; border-radius: 12px; object-fit: cover; }
 .temperature-block div { display: flex; align-items: baseline; }
 .temperature-block strong { font-size: 2.25rem; line-height: 1; letter-spacing: -.07em; }
 .temperature-block span { margin-left: 4px; font-size: .75rem; font-weight: 800; }
 .current-metrics { display: grid; gap: 8px; }
-.current-metrics > div { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.6); }
+.current-metrics > div { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-card); }
 .current-metrics mat-icon { width: 17px; height: 17px; color: var(--accent); font-size: 17px; }
 .current-metrics span { color: var(--ink-600); font-size: .69rem; }
 .current-metrics strong { font-size: .75rem; }
@@ -74,25 +74,25 @@
 .section-title strong { font-size: .82rem; }
 .section-title span { color: var(--ink-600); font-size: .65rem; }
 .hourly-container { display: grid; grid-auto-flow: column; grid-auto-columns: 84px; gap: 8px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
-.hourly-panel { display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 142px; padding: 10px 7px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.62); text-align: center; scroll-snap-align: start; }
+.hourly-panel { display: flex; flex-direction: column; align-items: center; gap: 5px; min-height: 142px; padding: 10px 7px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-card); text-align: center; scroll-snap-align: start; }
 .hourly-panel time { color: var(--ink-600); font-size: .65rem; font-weight: 700; }
 .hourly-panel img { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; }
 .hourly-panel strong { font-size: .92rem; }
 .hourly-panel span { display: -webkit-box; overflow: hidden; color: var(--ink-600); font-size: .61rem; line-height: 1.3; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .daily-forecast { display: grid; gap: 7px; }
 
-.severity-badge { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #e7eff4; color: #31506a; font-size: .68rem; font-weight: 800; text-transform: uppercase; }
-.severity-badge.minor { background: #e8f6e9; color: #257137; }
-.severity-badge.moderate { background: #fff7d6; color: #7a6200; }
-.severity-badge.severe { background: #fff0df; color: #9a4d00; }
-.severity-badge.extreme { background: #ffe4e0; color: #a32418; }
+.severity-badge { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: var(--status-info-bg); color: var(--status-info-text); font-size: .68rem; font-weight: 800; text-transform: uppercase; }
+.severity-badge.minor { background: var(--status-success-bg); color: var(--status-success-text); }
+.severity-badge.moderate { background: var(--status-warning-bg); color: var(--status-warning-text); }
+.severity-badge.severe { background: #3d281d; color: #d9915f; }
+.severity-badge.extreme { background: var(--status-error-bg); color: var(--status-error-text); }
 .event-content h3 { margin: 14px 0 16px; font-size: 1.03rem; line-height: 1.42; }
 .event-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.event-meta div { display: flex; flex-direction: column; gap: 4px; padding: 11px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.62); }
+.event-meta div { display: flex; flex-direction: column; gap: 4px; padding: 11px; border: 1px solid var(--line); border-radius: 11px; background: var(--bg-card); }
 .event-meta span { color: var(--ink-600); font-size: .63rem; font-weight: 700; text-transform: uppercase; }
 .event-meta strong { font-size: .72rem; line-height: 1.35; }
 .event-description, .instructions p { white-space: pre-line; color: var(--ink-800); font-size: .76rem; line-height: 1.6; }
-.instructions { margin-top: 16px; padding: 14px; border-left: 4px solid var(--accent); border-radius: 0 12px 12px 0; background: #edf6f7; }
+.instructions { margin-top: 16px; padding: 14px; border-left: 4px solid var(--accent); border-radius: 0 12px 12px 0; background: var(--accent-surface); }
 .instructions strong { font-size: .76rem; }
 .instructions p { margin-bottom: 0; }
 

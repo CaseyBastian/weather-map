@@ -46,11 +46,11 @@ import LayerGroup from 'ol/layer/Group';
 import { environment } from '../../environments/environment';
 
 enum EventSeverityColorScale {
-	MINOR = '0, 255, 0',
-	MODERATE = '255, 255, 0',
-	SEVERE = '255, 165, 0',
-	EXTREME = '255, 69, 0',
-	UNKNOWN = '0, 100, 255',
+	MINOR = '143, 193, 122',
+	MODERATE = '229, 184, 92',
+	SEVERE = '201, 106, 45',
+	EXTREME = '216, 138, 125',
+	UNKNOWN = '143, 179, 193',
 }
 
 enum EventSeverityZIndex {
@@ -165,6 +165,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const mapElement = this.mapElement.nativeElement;
 
 		const osmLayer = new TileLayer({
+			className: 'basemap-layer',
 			source: new OSM(),
 		});
 		osmLayer.setZIndex(MapLayerZIndex.BASE);
@@ -339,7 +340,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			this.renderer.setStyle(
 				placeIcon,
 				'color',
-				layerName === 'Ft. Belvoir' ? 'blueviolet' : 'blue'
+				layerName === 'Ft. Belvoir' ? '#866fa0' : '#c48414'
 			);
 			this.renderer.setStyle(placeIcon, 'fontSize', '18px');
 			this.renderer.appendChild(
@@ -538,7 +539,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 		const outline = new Style({
 			zIndex: 99,
-			stroke: new Stroke({ color: '#0f172a', width: 6 }),
+			stroke: new Stroke({ color: '#0e0f11', width: 6 }),
 		});
 		const highlight = new Style({
 			zIndex: 100,
@@ -819,7 +820,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			);
 
 			const icon = this.renderer.createElement('mat-icon');
-			this.renderer.setStyle(icon, 'color', 'limegreen');
+			this.renderer.setStyle(icon, 'color', '#3cb8c9');
 			this.renderer.setStyle(icon, 'fontSize', '24px');
 			this.renderer.addClass(icon, 'mat-icon');
 			this.renderer.addClass(icon, 'material-icons');

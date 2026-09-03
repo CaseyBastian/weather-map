@@ -2,19 +2,40 @@
 @import url("https://fonts.googleapis.com/icon?family=Material+Icons");
 
 :root {
-	--ink-950: #07111f;
-	--ink-800: #17253a;
-	--ink-600: #526078;
-	--surface: rgba(250, 252, 255, 0.94);
-	--surface-strong: #ffffff;
-	--line: rgba(15, 35, 61, 0.12);
-	--accent: #176b87;
-	--accent-strong: #0b526b;
-	--focus: #0ea5e9;
+	--bg-app: #0e0f11;
+	--bg-sidebar: #101113;
+	--bg-surface: #1a1b1c;
+	--bg-card: #201f1e;
+	--bg-elevated: #2a2926;
+	--ink-950: #e8e4da;
+	--ink-800: #a4a09a;
+	--ink-600: #837e73;
+	--surface: rgba(26, 27, 28, 0.96);
+	--surface-strong: #201f1e;
+	--line: #37352e;
+	--accent: #c48414;
+	--gold: #c48414;
+	--accent-strong: #e5b85c;
+	--accent-surface: #44341c;
+	--focus: #c48414;
+	--status-success-bg: #1f3324;
+	--status-success-text: #8fc17a;
+	--status-warning-bg: #44341c;
+	--status-warning-text: #e5b85c;
+	--status-error-bg: #3a1f1d;
+	--status-error-text: #d88a7d;
+	--status-info-bg: #1e2e35;
+	--status-info-text: #8fb3c1;
+	--cat-1: #c48414;
+	--cat-2: #6f8794;
+	--cat-3: #6f8a55;
+	--cat-4: #9a8470;
+	--cat-5: #8a6f8e;
+	--cat-6: #9a5147;
 	--radius-lg: 18px;
 	--radius-md: 12px;
-	--shadow-panel: 0 18px 55px rgba(6, 24, 44, 0.2),
-		0 2px 10px rgba(6, 24, 44, 0.08);
+	--shadow-panel: 0 18px 55px rgba(0, 0, 0, 0.42),
+		0 2px 10px rgba(0, 0, 0, 0.28);
 	--motion-fast: 140ms;
 	--motion-panel: 180ms;
 }
@@ -36,7 +57,7 @@ body {
 	margin: 0;
 	font-family: Inter, Roboto, "Helvetica Neue", sans-serif;
 	color: var(--ink-950);
-	background: #d7e1e8;
+	background: var(--bg-app);
 	-webkit-font-smoothing: antialiased;
 }
 
