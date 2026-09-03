@@ -17,7 +17,10 @@
 				"build": {
 					"builder": "@angular-devkit/build-angular:application",
 					"options": {
-						"outputPath": "dist/weather-map",
+						"outputPath": {
+							"base": "dist",
+							"browser": ""
+						},
 						"index": "src/index.html",
 						"browser": "src/main.ts",
 						"polyfills": ["zone.js"],
@@ -52,8 +55,8 @@
 								},
 								{
 									"type": "anyComponentStyle",
-									"maximumWarning": "2kB",
-									"maximumError": "4kB"
+									"maximumWarning": "5kB",
+									"maximumError": "6kB"
 								}
 							],
 							"outputHashing": "all"

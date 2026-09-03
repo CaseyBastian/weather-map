@@ -1,62 +1,68 @@
-<div class="sidebar" [class.hidden]="!sidebarVisible">
-	<div class="sidebar-header">
-		<mat-icon class="toggle-button" (click)="toggleSidebar()"
-			>menu</mat-icon
-		>
-	</div>
-	<div class="sidebar-content">
-		<mat-expansion-panel>
-			<mat-expansion-panel-header>
-				<div class="category-header">
-					<b>Weather Stations and POIs</b>
-				</div>
-			</mat-expansion-panel-header>
-			<ul>
-				<li *ngFor="let layer of forecastLayers$ | async">
-					<input
-						type="checkbox"
-						[checked]="layer.visible"
-						(change)="
-							toggleLayerVisibility(
-								sourceLayerType.FORECAST,
-								layer.name
-							)
-						"
-					/>
-					{{ layer.name }}
+<aside class="sidebar" [class.hidden]="!sidebarVisible" aria-label="Map layers">
+	<button class="toggle-button" type="button" (click)="toggleSidebar()" [attr.aria-expanded]="sidebarVisible" aria-controls="layer-controls" [attr.aria-label]="sidebarVisible ? 'Close map layers' : 'Open map layers'">
+		<mat-icon aria-hidden="true">{{ sidebarVisible ? 'close' : 'tune' }}</mat-icon>
+	</button>
+
+	<div class="sidebar-content" id="layer-controls" [attr.aria-hidden]="!sidebarVisible">
+		<div class="panel-heading">
+			<span class="eyebrow">Map controls</span>
+			<h1>Layers</h1>
+			<p>Choose what appears above the forecast map.</p>
+		</div>
+
+		<section class="layer-section">
+			<div class="section-heading">
+				<div><mat-icon aria-hidden="true">radar</mat-icon><strong>Radar</strong></div>
+				<span class="section-tag">1 active</span>
+			</div>
+			<div class="segmented-control" *ngIf="radarLayers$ | async">
+				<label *ngFor="let layer of radarLayers; trackBy: trackByName" [class.selected]="layer.visible">
+					<input type="radio" name="radarLayer" [value]="layer.name" [checked]="layer.visible" (change)="toggleLayerVisibility(sourceLayerType.RADAR, layer.name)" />
+					<span>{{ layer.name.replace(' Radar', '') }}</span>
+				</label>
+			</div>
+		</section>
+
+		<section class="layer-section">
+			<div class="section-heading">
+				<div><mat-icon aria-hidden="true">warning_amber</mat-icon><strong>Active alerts</strong></div>
+				<span class="section-tag">{{ eventLayers.length }}</span>
+			</div>
+			<ul class="control-list" *ngIf="eventLayers.length; else no_weather_events">
+				<li *ngFor="let layer of eventLayers; trackBy: trackByName">
+					<label class="check-row">
+						<span class="alert-dot" aria-hidden="true"></span>
+						<span class="row-label">{{ layer.name }}</span>
+						<input type="checkbox" [checked]="layer.visible" (change)="toggleLayerVisibility(sourceLayerType.EVENT, layer.name)" />
+					</label>
 				</li>
 			</ul>
-		</mat-expansion-panel>
-		<div class="category-header"><b>Radar Source</b></div>
-		<ul *ngIf="radarLayers$ | async">
-			<li *ngFor="let layer of radarLayers">
-				<input
-					type="radio"
-					name="radarLayer"
-					[value]="layer.name"
-					[checked]="layer.visible"
-					(change)="
-						toggleLayerVisibility(sourceLayerType.RADAR, layer.name)
-					"
-				/>
-				{{ layer.name }}
-			</li>
-		</ul>
-		<div class="category-header"><b>Weather Alerts</b></div>
-		<ul *ngIf="eventLayers$ | async; else no_weather_events">
-			<li *ngFor="let layer of eventLayers">
-				<input
-					type="checkbox"
-					[checked]="layer.visible"
-					(change)="
-						toggleLayerVisibility(sourceLayerType.EVENT, layer.name)
-					"
-				/>
-				{{ layer.name }}
-			</li>
-		</ul>
-		<ng-template #no_weather_events>
-			<p>No Weather Events Available</p>
-		</ng-template>
+			<ng-template #no_weather_events>
+				<div class="empty-state"><mat-icon aria-hidden="true">check_circle</mat-icon>No active alerts</div>
+			</ng-template>
+		</section>
+
+		<details class="layer-section station-section">
+			<summary>
+				<span><mat-icon aria-hidden="true">location_on</mat-icon><strong>Stations & places</strong></span>
+				<mat-icon class="chevron" aria-hidden="true">expand_more</mat-icon>
+			</summary>
+			<ul class="control-list">
+				<li *ngFor="let layer of forecastLayers$ | async; trackBy: trackByName">
+					<label class="check-row">
+						<span class="station-dot" aria-hidden="true"></span>
+						<span class="row-label">{{ layer.name }}</span>
+						<input type="checkbox" [checked]="layer.visible" (change)="toggleLayerVisibility(sourceLayerType.FORECAST, layer.name)" />
+					</label>
+				</li>
+			</ul>
+		</details>
+
+		<section class="legend" aria-label="Alert severity legend">
+			<span class="legend-title">Severity order</span>
+			<div class="legend-scale">
+				<span class="minor">Minor</span><span class="moderate">Moderate</span><span class="severe">Severe</span><span class="extreme">Extreme</span>
+			</div>
+		</section>
 	</div>
-</div>
+</aside>

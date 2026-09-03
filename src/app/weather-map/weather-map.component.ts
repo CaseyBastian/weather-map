@@ -61,6 +61,14 @@ enum EventSeverityZIndex {
 	UNKNOWN = 0,
 }
 
+const MapLayerZIndex = {
+	BASE: 0,
+	FORECAST: 10,
+	RADAR: 20,
+	ALERTS: 30,
+	MARKERS: 40,
+} as const;
+
 interface NewProperties {
 	locationName: string;
 	hourlyForecast: any;
@@ -88,11 +96,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 	private map!: OLMap;
 	private USCenterLongLat: number[] = [-98.5795, 39.8283];
-	private reloadIntervalId: any;
 	private iconOverlayMap: Map<string, Overlay> = new Map();
 	private markerOverlayMap: Map<string, Overlay> = new Map();
 	private forecastVectorLayerMap: Map<string, VectorLayer> = new Map();
-	private eventVectorLayerMap: Map<string, VectorLayer> = new Map();
+	private eventVectorLayer?: VectorLayer;
 	private eventVisibilityState: Map<string, boolean> = new Map();
 	private forecastVisibilityState: Map<string, boolean> = new Map();
 	private radarVisibilityState: Map<string, boolean> = new Map();
@@ -103,6 +110,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 	private markerVectorLayers: LayerGroup = new LayerGroup({ layers: [] });
 	private lastLocation: GeoPathLocation | undefined;
+	private hoveredFeature: FeatureLike | null = null;
+	private pointerMoveFrame: number | null = null;
 
 	constructor(
 		private element: ElementRef<HTMLElement>,
@@ -133,12 +142,11 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				this.toggleRadarLayers(radarLayers);
 			});
 
-		this.reloadIntervalId = setInterval(() => {}, 300000);
 	}
 
 	ngOnDestroy(): void {
-		if (this.reloadIntervalId) {
-			clearInterval(this.reloadIntervalId);
+		if (this.pointerMoveFrame !== null) {
+			cancelAnimationFrame(this.pointerMoveFrame);
 		}
 
 		this.destroy$.next();
@@ -151,6 +159,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const osmLayer = new TileLayer({
 			source: new OSM(),
 		});
+		osmLayer.setZIndex(MapLayerZIndex.BASE);
+		this.markerVectorLayers.setZIndex(MapLayerZIndex.MARKERS);
 
 		this.map = new OLMap({
 			target: mapElement,
@@ -176,22 +186,27 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		});
 
 		this.map.on('pointermove', (evt) => {
-			const feature = this.map.forEachFeatureAtPixel(
-				evt.pixel,
-				(feat) => feat
-			);
+			if (evt.dragging || this.pointerMoveFrame !== null) return;
 
-			if (feature) {
-				const properties = feature.getProperties();
-				const { type } = properties;
+			this.pointerMoveFrame = requestAnimationFrame(() => {
+				this.pointerMoveFrame = null;
+				const feature = this.map.forEachFeatureAtPixel(
+					evt.pixel,
+					(feat) => feat,
+					{ hitTolerance: 5 }
+				);
+				const interactive = !!feature;
+				this.map.getTargetElement().style.cursor = interactive
+					? 'pointer'
+					: '';
 
-				if (type && type === 'marked-location') {
-					return;
+				const isAlert = feature?.get('@type') === 'wx:Alert';
+				const nextHovered = isAlert ? feature! : null;
+				if (nextHovered !== this.hoveredFeature) {
+					this.hoveredFeature = nextHovered;
+					this.eventVectorLayer?.changed();
 				}
-
-				this.highlightEventLayer(feature);
-				this.showInfoPanel(feature);
-			}
+			});
 		});
 
 		this.map.on('click', (evt) => {
@@ -201,16 +216,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			);
 			if (!feature) {
 				this.infoPanelService.setInfoPanelVisibility(false);
-				this.eventVectorLayerMap.forEach((vectorLayer) => {
-					const layerFeatures = vectorLayer
-						.getSource()
-						?.getFeatures();
-					layerFeatures?.forEach((layerFeature) => {
-						const defaultStyle = this.styleEvent(layerFeature);
-						layerFeature.setStyle(defaultStyle);
-					});
-				});
-
+				this.hoveredFeature = null;
+				this.eventVectorLayer?.changed();
 				this.clearPaths();
 			}
 
@@ -220,6 +227,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 				if (type && type === 'marked-location') {
 					this.handleMarkerClick(location);
+				} else {
+					this.showInfoPanel(feature);
 				}
 			}
 		});
@@ -276,6 +285,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				source: vectorSource,
 				visible: visible,
 			});
+			vectorLayer.setZIndex(MapLayerZIndex.FORECAST);
 
 			this.map.addLayer(vectorLayer);
 			this.forecastVectorLayerMap.set(layerName, vectorLayer);
@@ -358,13 +368,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			this.weatherLayersService.getVisibleLayers(
 				SourceLayerType.FORECAST
 			) as ForecastLayer[];
-		const batchSize = 3;
-		const delayBetween = 1000;
+		const batchSize = 4;
 
 		for (let i = 0; i < visibleLayers.length; i += batchSize) {
 			const layerBatch = visibleLayers.slice(i, i + batchSize);
 
-			await Promise.all(
+			await Promise.allSettled(
 				layerBatch.map(async (visibleLayer) => {
 					const geoJSONFormat = new GeoJSON();
 
@@ -376,10 +385,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 					if (!gridPoint) {
 						return;
 					}
-					const forecastData =
-						await this.weatherLayersService.fetchForecastData(
+					const [forecastData, hourlyForecast] = await Promise.all([
+						this.weatherLayersService.fetchForecastData(gridPoint),
+						this.weatherLayersService.fetchHourlyForecastData(
 							gridPoint
-						);
+						),
+					]);
 					if (!forecastData) {
 						return;
 					}
@@ -387,10 +398,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 					const features = geoJSONFormat.readFeatures(forecastData, {
 						featureProjection: projection,
 					});
-					const hourlyForecast =
-						await this.weatherLayersService.fetchHourlyForecastData(
-							gridPoint
-						);
 					const periods =
 						hourlyForecast?.properties?.periods?.slice(0, 6) || [];
 
@@ -402,8 +409,6 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 					);
 				})
 			);
-
-			await this.delayRequest(delayBetween);
 		}
 	}
 
@@ -452,43 +457,27 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 	private createEventLayer(eventData: AlertApiResponse): void {
 		const events = this.weatherLayersService.getEventLayers();
-		const dataFeatures = eventData.features;
-		events.forEach((evt) => {
-			const filteredFeatures = dataFeatures.filter((dataFeature) => {
-				return evt.name === dataFeature.properties.event;
-			});
-			const newFeatureData = { ...eventData, features: filteredFeatures };
-			this.addEventLayer(newFeatureData, evt.name);
-		});
-	}
-
-	private addEventLayer(
-		eventData: AlertApiResponse,
-		eventType: string
-	): void {
+		events.forEach((event) =>
+			this.eventVisibilityState.set(event.name, event.visible)
+		);
 		const geoJSONFormat = new GeoJSON();
 		const features = geoJSONFormat.readFeatures(eventData, {
 			featureProjection: projection,
 		});
 
-		features.forEach((feat, idx) => {
-			this.findImpactedLocations(feat);
-		});
+		features.forEach((feature) => this.findImpactedLocations(feature));
 
 		const vectorSource = new VectorSource({
 			features: features,
 		});
 
-		const vectorLayer = new VectorLayer({
+		this.eventVectorLayer = new VectorLayer({
 			source: vectorSource,
 			visible: true,
-			style: (feature) => this.styleEvent(feature),
+			style: (feature) => this.getEventStyle(feature),
 		});
-
-		vectorLayer.setZIndex(2);
-		this.map.addLayer(vectorLayer);
-		this.eventVectorLayerMap.set(eventType, vectorLayer);
-		this.eventVisibilityState.set(eventType, true);
+		this.eventVectorLayer.setZIndex(MapLayerZIndex.ALERTS);
+		this.map.addLayer(this.eventVectorLayer);
 	}
 
 	private findImpactedLocations(feature: Feature<Geometry>) {
@@ -523,33 +512,51 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private async toggleEventLayers(eventLayers: EventLayer[]): Promise<void> {
 		if (this.map) {
 			eventLayers.forEach((eventLayer) => {
-				const vectorLayer = this.eventVectorLayerMap.get(
-					eventLayer.name
+				this.eventVisibilityState.set(
+					eventLayer.name,
+					eventLayer.visible
 				);
-
-				if (vectorLayer) {
-					vectorLayer.setVisible(eventLayer.visible);
-					this.eventVisibilityState.set(
-						eventLayer.name,
-						eventLayer.visible
-					);
-				}
 			});
+			this.eventVectorLayer?.changed();
 		}
+	}
+
+	private getEventStyle(feature: FeatureLike): Style | Style[] | undefined {
+		const eventType = feature.get('event');
+		if (this.eventVisibilityState.get(eventType) === false) return undefined;
+
+		const style = this.styleEvent(feature);
+		if (feature !== this.hoveredFeature) return style;
+
+		const outline = new Style({
+			zIndex: 99,
+			stroke: new Stroke({ color: '#0f172a', width: 6 }),
+		});
+		const highlight = new Style({
+			zIndex: 100,
+			fill: new Fill({ color: style.getFill()?.getColor() }),
+			stroke: new Stroke({
+				color: style.getStroke()?.getColor(),
+				width: 3,
+			}),
+		});
+		return [outline, highlight];
 	}
 
 	private styleEvent(feature: FeatureLike): Style {
 		const properties = feature.getProperties();
-		const severity = properties['severity']?.toUpperCase();
-		const color = severity
-			? EventSeverityColorScale[
-					severity as keyof typeof EventSeverityColorScale
-			  ]
-			: '0, 100, 255';
+		const rawSeverity = String(properties['severity'] ?? '')
+			.trim()
+			.toUpperCase();
+		const severity = Object.prototype.hasOwnProperty.call(
+			EventSeverityZIndex,
+			rawSeverity
+		)
+			? (rawSeverity as keyof typeof EventSeverityZIndex)
+			: 'UNKNOWN';
+		const color = EventSeverityColorScale[severity];
 		const style = new Style({
-			zIndex: EventSeverityZIndex[
-				severity as keyof typeof EventSeverityZIndex
-			],
+			zIndex: EventSeverityZIndex[severity],
 			fill: new Fill({
 				color: `rgba(${color}, 0.2)`,
 			}),
@@ -612,63 +619,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		return features;
 	}
 
-	private highlightEventLayer(features: FeatureLike): void {
-		const featureId = features.getId();
-
-		this.eventVectorLayerMap.forEach((vectorLayer, key) => {
-			const layerFeatures = vectorLayer.getSource()?.getFeatures();
-			const vectorStyle = vectorLayer.getStyle();
-			const featureOutlineStyle = new Style({
-				zIndex: 1,
-				stroke: new Stroke({
-					color: 'black',
-					width: 7,
-				}),
-			});
-
-			if (layerFeatures) {
-				layerFeatures.forEach((layerFeature) => {
-					if (layerFeature.getId() === featureId) {
-						let highlightStyle;
-						if (typeof vectorStyle === 'function') {
-							const originalStyle = vectorStyle(
-								layerFeature,
-								0
-							) as Style;
-							highlightStyle = new Style({
-								zIndex: 10,
-								fill: new Fill({
-									color: originalStyle.getFill()?.getColor(),
-								}),
-								stroke: new Stroke({
-									color: originalStyle
-										.getStroke()
-										?.getColor(),
-									width: 5,
-								}),
-							});
-						}
-
-						layerFeature.setStyle([
-							featureOutlineStyle,
-							highlightStyle,
-						]);
-					} else {
-						const defaultStyle = this.styleEvent(layerFeature);
-						layerFeature.setStyle(defaultStyle);
-					}
-				});
-			}
-		});
-	}
-
 	private showInfoPanel(feature: any): void {
 		const props = feature.getProperties();
 
 		if (props && props['@type'] === 'wx:Alert') {
-			const content = this.buildEventContent(props);
 			this.infoPanelService.setInfoPanelType(InfoType.EVENT);
-			this.infoPanelService.setInfoPanelData(content);
+			this.infoPanelService.setInfoPanelData(props);
 		} else if (props && props.periods) {
 			this.infoPanelService.setInfoPanelType(InfoType.FORECAST);
 			this.infoPanelService.setInfoPanelData(props);
@@ -709,11 +665,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			opacity: 0.6,
 			visible: false,
 		});
+		radarLayer.setZIndex(MapLayerZIndex.RADAR);
 
 		this.weatherLayersService.addRadarsToSource(RadarLayerNames.RV);
 		this.map.addLayer(radarLayer);
 		this.radarTileLayerMap.set(RadarLayerNames.RV, radarLayer);
-		this.eventVisibilityState.set(RadarLayerNames.RV, false);
+		this.radarVisibilityState.set(RadarLayerNames.RV, false);
 	}
 
 	private addNOAARadarLayer(): void {
@@ -737,10 +694,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		});
 
 		this.weatherLayersService.addRadarsToSource(RadarLayerNames.NOAA);
-		radarLayer.setZIndex(1);
+		radarLayer.setZIndex(MapLayerZIndex.RADAR);
 		this.map.addLayer(radarLayer);
 		this.radarTileLayerMap.set(RadarLayerNames.NOAA, radarLayer);
-		this.eventVisibilityState.set(RadarLayerNames.NOAA, true);
+		this.radarVisibilityState.set(RadarLayerNames.NOAA, true);
 	}
 
 	private createMarkerOverlay(location: GeoPathLocation): void {
@@ -749,8 +706,14 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		let overlay = this.markerOverlayMap.get(locationName);
 
 		if (!overlay) {
-			const iconElement = this.renderer.createElement('div');
+			const iconElement = this.renderer.createElement('button');
 			this.renderer.addClass(iconElement, 'marker-icon-wrapper');
+			this.renderer.setAttribute(iconElement, 'type', 'button');
+			this.renderer.setAttribute(
+				iconElement,
+				'aria-label',
+				`Show routes from ${locationName}`
+			);
 			this.renderer.setStyle(iconElement, 'position', 'absolute');
 			this.renderer.setStyle(
 				iconElement,
@@ -773,6 +736,9 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			this.renderer.addClass(pulseCircle, 'pulse-circle');
 			this.renderer.appendChild(iconElement, pulseCircle);
 			this.renderer.appendChild(iconElement, icon);
+			this.renderer.listen(iconElement, 'click', () =>
+				this.handleMarkerClick(location)
+			);
 
 			overlay = new Overlay({
 				element: iconElement,
@@ -903,45 +869,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		this.lastLocation = undefined;
 	}
 
-	delayRequest(ms: number) {
-		return new Promise((resolve) => setTimeout(resolve, ms));
-	}
-
-	debounceLayer(func: () => void, delay: number) {
-		let timer: any;
-		return () => {
-			clearTimeout(timer);
-			timer = setTimeout(func, delay);
-		};
-	}
-
 	private async loadLayers() {
-		const loadForecastLayers = this.debounceLayer(
-			() => this.loadForecastLayers(),
-			0
-		);
-		const loadEventLayers = this.debounceLayer(
-			() => this.loadEventLayers(),
-			5000
-		);
-		const addNOAARadar = this.debounceLayer(
-			() => this.addNOAARadarLayer(),
-			10000
-		);
-		const addRainViewerRadar = this.debounceLayer(
-			() => this.addRVRadarLayer(),
-			15000
-		);
-		const pathMarkerLayers = this.debounceLayer(
-			() => this.addLocationMarkers(),
-			15000
-		);
-
-		loadForecastLayers();
-		loadEventLayers();
-		addNOAARadar();
-		addRainViewerRadar();
-		pathMarkerLayers();
+		this.addLocationMarkers();
+		this.addNOAARadarLayer();
+		const rainViewerPromise = this.addRVRadarLayer();
+		await this.loadForecastLayers();
+		await Promise.allSettled([this.loadEventLayers(), rainViewerPromise]);
 	}
 
 	@HostListener('window:resize', ['$event'])

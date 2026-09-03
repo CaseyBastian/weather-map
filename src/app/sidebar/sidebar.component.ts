@@ -25,7 +25,7 @@ export class SidebarComponent implements OnInit {
 
 	eventLayers: EventLayer[] = [];
 	radarLayers: EventLayer[] = [];
-	sidebarVisible: boolean = false;
+	sidebarVisible: boolean = true;
 	sourceLayerType = SourceLayerType;
 	hasEvents: boolean = false;
 
@@ -57,5 +57,9 @@ export class SidebarComponent implements OnInit {
 
 	toggleSidebar() {
 		this.sidebarVisible = !this.sidebarVisible;
+	}
+
+	trackByName(_: number, layer: EventLayer | ForecastLayer): string {
+		return layer.name;
 	}
 }

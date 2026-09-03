@@ -1,0 +1,18 @@
+.weather-card {
+	display: grid;
+	grid-template-columns: 38px 1fr auto;
+	align-items: center;
+	gap: 10px;
+	min-height: 54px;
+	padding: 8px 10px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: rgba(255,255,255,.62);
+}
+
+img { width: 38px; height: 38px; border-radius: 9px; object-fit: cover; }
+.period-copy { display: flex; flex-direction: column; min-width: 0; }
+.period-copy strong { font-size: .75rem; }
+.period-copy span { overflow: hidden; color: var(--ink-600); font-size: .66rem; text-overflow: ellipsis; white-space: nowrap; }
+.period-temp { font-size: 1rem; font-weight: 800; }
+.period-temp span { margin-left: 2px; color: var(--ink-600); font-size: .62rem; }

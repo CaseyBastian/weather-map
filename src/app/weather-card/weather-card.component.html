@@ -1,7 +1,8 @@
 <div class="weather-card">
-	<b>{{ forecastPeriod.name }}</b>
-
-	<!-- <b>{{ forecastPeriod.startTime }}</b>
-    <p>Temperature: {{ forecastPeriod.temperature }} {{ forecastPeriod.temperatureUnit }}</p>
-    <p>{{ forecastPeriod.shortForecast }}</p> -->
+	<img [src]="forecastPeriod.icon" [alt]="forecastPeriod.shortForecast" />
+	<div class="period-copy">
+		<strong>{{ forecastPeriod.name }}</strong>
+		<span>{{ forecastPeriod.shortForecast }}</span>
+	</div>
+	<div class="period-temp">{{ forecastPeriod.temperature }}°<span>{{ forecastPeriod.temperatureUnit }}</span></div>
 </div>

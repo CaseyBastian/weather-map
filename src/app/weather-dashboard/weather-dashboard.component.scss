@@ -2,4 +2,109 @@
 	position: relative;
 	height: 100vh;
 	width: 100vw;
+	overflow: hidden;
+}
+
+.topbar {
+	position: absolute;
+	z-index: 20;
+	top: 16px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-height: 52px;
+	padding: 8px 10px 8px 12px;
+	border: 1px solid rgba(255, 255, 255, 0.62);
+	border-radius: 16px;
+	background: rgba(248, 251, 253, 0.9);
+	box-shadow: 0 12px 34px rgba(7, 25, 46, 0.16);
+	backdrop-filter: blur(18px) saturate(140%);
+}
+
+.brand-mark {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 11px;
+	background: linear-gradient(145deg, #0b526b, #34a0a4);
+	box-shadow: inset 0 1px rgba(255, 255, 255, 0.35);
+
+	&::before,
+	&::after,
+	span {
+		content: "";
+		position: absolute;
+		width: 16px;
+		height: 2px;
+		border-radius: 99px;
+		background: white;
+	}
+
+	&::before { transform: translateY(-5px); }
+	&::after { transform: translateY(5px); }
+}
+
+.brand-copy {
+	display: flex;
+	flex-direction: column;
+	line-height: 1.05;
+
+	strong { font-size: 0.98rem; letter-spacing: -0.02em; }
+	span { margin-top: 4px; color: var(--ink-600); font-size: 0.68rem; }
+}
+
+.live-status {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin-left: 10px;
+	padding: 8px 10px;
+	border-left: 1px solid var(--line);
+	color: var(--ink-600);
+	font-size: 0.72rem;
+	font-weight: 700;
+}
+
+.status-dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: #16a36a;
+	box-shadow: 0 0 0 4px rgba(22, 163, 106, 0.13);
+}
+
+.map-hint {
+	position: absolute;
+	z-index: 9;
+	bottom: 22px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 9px 13px;
+	border: 1px solid rgba(255, 255, 255, 0.55);
+	border-radius: 999px;
+	background: rgba(7, 17, 31, 0.76);
+	color: #f8fafc;
+	font-size: 0.75rem;
+	box-shadow: 0 8px 24px rgba(7, 17, 31, 0.2);
+	backdrop-filter: blur(12px);
+	pointer-events: none;
+
+	mat-icon { width: 16px; height: 16px; font-size: 16px; }
+}
+
+@media (max-width: 720px) {
+	.topbar {
+		top: 10px;
+		max-width: calc(100vw - 100px);
+	}
+
+	.live-status { display: none; }
+	.map-hint { bottom: 14px; }
 }

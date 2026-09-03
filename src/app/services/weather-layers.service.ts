@@ -264,7 +264,7 @@ export class WeatherLayersService {
 	constructor(private http: HttpClient) {}
 
 	hasEvents(): boolean {
-		return eventLayersArr.length > 0;
+		return this.eventLayersSource.value.length > 0;
 	}
 
 	getEventLayers(): EventLayer[] {
@@ -305,28 +305,13 @@ export class WeatherLayersService {
 				visible: true,
 			}));
 
-		const observedEventLayers = this.eventLayersSource.getValue();
-		const mergedArray = eventResults.map((eventObj) => {
-			const eventExists = observedEventLayers.find(
-				(eventLayer) => eventLayer.name === eventObj.name
-			);
-
-			if (eventExists) {
-				const visible = eventExists.visible ? eventObj.visible : true;
-				return {
-					name: eventObj.name,
-					visible: visible,
-				};
-			} else {
-				return eventObj;
-			}
-		});
-
-		const cleanedEventLayers = observedEventLayers.filter((eventLayer) =>
-			eventResults.some((eventObj) => eventObj.name === eventLayer.name)
+		const previousVisibility = new Map(
+			this.eventLayersSource.value.map((layer) => [layer.name, layer.visible])
 		);
-
-		const finalEventLayers = [...cleanedEventLayers, ...mergedArray];
+		const finalEventLayers = eventResults.map((event) => ({
+			...event,
+			visible: previousVisibility.get(event.name) ?? true,
+		}));
 
 		this.eventLayersSource.next(finalEventLayers);
 	}

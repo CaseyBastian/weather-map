@@ -28,8 +28,16 @@
 
 .marker-icon-wrapper {
 	position: relative;
-	display: inline-block;
-	pointer-events: none;
+	display: grid;
+	place-items: center;
+	width: 44px;
+	height: 44px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: transparent;
+	pointer-events: auto;
+	cursor: pointer;
 }
 
 .marker-icon {
@@ -46,7 +54,7 @@
 	height: 100%;
 	border-radius: 50%;
 	background: rgba(0, 255, 255, 0.3);
-	transform: translate(-50%, -50%);
+	transform: translate(-50%, -50%) scale(0.4);
 	opacity: 0;
 	pointer-events: none;
 }
@@ -67,20 +75,17 @@
 
 @keyframes radiate {
 	0% {
-		width: 0;
-		height: 0;
+		transform: translate(-50%, -50%) scale(0.4);
 		opacity: 1;
 	}
 
 	50% {
-		width: 150%;
-		height: 150%;
+		transform: translate(-50%, -50%) scale(1.5);
 		opacity: 1;
 	}
 
 	100% {
-		width: 200%;
-		height: 200%;
+		transform: translate(-50%, -50%) scale(2);
 		opacity: 0;
 	}
 }
@@ -91,5 +96,31 @@
 
 .marker-icon-wrapper:active .pulse-circle {
 	opacity: 1;
-	animation: radiate 0.1s ease-out forwards;
+	animation: radiate 0.28s ease-out forwards;
 }
+
+:host ::ng-deep .ol-zoom {
+	top: auto;
+	right: 16px;
+	bottom: 22px;
+	left: auto;
+	padding: 4px;
+	border: 1px solid rgba(255,255,255,.55);
+	border-radius: 12px;
+	background: rgba(248,251,253,.9);
+	box-shadow: 0 8px 22px rgba(7,17,31,.16);
+	backdrop-filter: blur(12px);
+}
+
+:host ::ng-deep .ol-zoom button {
+	width: 34px;
+	height: 34px;
+	margin: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--ink-800);
+	cursor: pointer;
+}
+
+:host ::ng-deep .ol-zoom button:hover { background: #dfecef; }
+:host ::ng-deep .ol-attribution { font-size: 10px; }

@@ -1,13 +1,14 @@
-import { AfterViewInit, Component, OnDestroy } from '@angular/core';
+import { AfterViewInit, Component, HostListener, OnDestroy } from '@angular/core';
 import { InfoPanelService, InfoType } from '../services/info-panel.service';
 import { WeatherCardComponent } from '../weather-card/weather-card.component';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
 
 @Component({
 	selector: 'app-info-panel',
 	standalone: true,
-	imports: [CommonModule, WeatherCardComponent],
+	imports: [CommonModule, WeatherCardComponent, MatIconModule],
 	templateUrl: './info-panel.component.html',
 	styleUrl: './info-panel.component.scss',
 })
@@ -48,6 +49,15 @@ export class InfoPanelComponent implements AfterViewInit, OnDestroy {
 		this.infoPanelData = data;
 	}
 
+	close(): void {
+		this.infoPanelService.setInfoPanelVisibility(false);
+	}
+
+	@HostListener('document:keydown.escape')
+	onEscape(): void {
+		if (this.infoPanelVisible) this.close();
+	}
+
 	getTime(dateTime: string): string {
 		const date = new Date(dateTime);
 		const hours = date.getHours().toString().padStart(2, '0');
@@ -84,20 +94,20 @@ export class InfoPanelComponent implements AfterViewInit, OnDestroy {
 	}
 
 	get getDailyForecast() {
-		const today = new Date();
-		const startDate = new Date(
-			today.getFullYear(),
-			today.getMonth(),
-			today.getDate()
-		);
-		const endDate = new Date(
-			today.getFullYear(),
-			today.getMonth(),
-			today.getDate() + 1
-		);
-		return this.infoPanelData.periods.filter((period: any) => {
-			const periodDate = new Date(period.startTime);
-			return periodDate >= startDate && periodDate < endDate;
+		return this.infoPanelData.periods?.slice(0, 6) ?? [];
+	}
+
+	formatDateTime(value: string): string {
+		if (!value) return 'Not specified';
+		return new Date(value).toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
 		});
+	}
+
+	get eventSeverityClass(): string {
+		return String(this.infoPanelData?.severity ?? 'unknown').toLowerCase();
 	}
 }
