@@ -3,7 +3,7 @@
 	<svg #svgOverlayElement id="svg-overlay"></svg>
 	<section class="radar-player" *ngIf="radarAnimationAvailable && rainViewerVisible" aria-label="Radar animation controls">
 		<div class="radar-player-header">
-			<div><span class="radar-live-dot"></span><strong>Radar loop</strong><span class="frame-kind">{{ currentRadarFrameKind }}</span></div>
+			<div><span class="radar-live-dot"></span><strong>Radar loop</strong><span class="frame-kind" [class.loading]="radarViewUpdating">{{ radarViewUpdating ? 'Updating view' : currentRadarFrameKind }}</span></div>
 			<time>{{ currentRadarFrameLabel }}</time>
 		</div>
 		<div class="radar-controls">

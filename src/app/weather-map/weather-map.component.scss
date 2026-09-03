@@ -158,6 +158,7 @@
 .radar-player-header time { color: var(--ink-600); font-size: .66rem; font-weight: 700; }
 .radar-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--status-success-text); box-shadow: 0 0 0 4px rgba(143,193,122,.13); }
 .frame-kind { padding: 3px 6px; border-radius: 999px; background: var(--accent-surface); color: var(--accent-strong); font-size: .58rem; font-weight: 800; text-transform: uppercase; }
+.frame-kind.loading { color: var(--ink-600); background: var(--bg-elevated); }
 
 .radar-controls { gap: 7px; }
 .radar-controls > button {

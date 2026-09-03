@@ -127,6 +127,11 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private eventStyleCache = new Map<string, Style>();
 	private eventInteractionStyleCache = new Map<string, Style[]>();
 	private radarAnimationInterval: ReturnType<typeof setInterval> | null = null;
+	private radarInteractionResumeTimer: ReturnType<typeof setTimeout> | null = null;
+	private radarTilesLoading = 0;
+	private radarInteractionPending = false;
+	private resumeRadarAfterInteraction = false;
+	private radarInteractionDeadline = 0;
 	private dataRefreshInterval: ReturnType<typeof setInterval> | null = null;
 	private refreshInFlight = false;
 	private lastAlertRefreshAt = 0;
@@ -141,6 +146,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	currentRadarFrameIndex = 0;
 	radarAnimationPlaying = false;
 	radarAnimationAvailable = false;
+	radarViewUpdating = false;
 
 	constructor(
 		private element: ElementRef<HTMLElement>,
@@ -188,6 +194,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			cancelAnimationFrame(this.pointerMoveFrame);
 		}
 		this.stopRadarAnimation();
+		this.cancelRadarInteractionResume();
 		if (this.dataRefreshInterval) {
 			clearInterval(this.dataRefreshInterval);
 			this.dataRefreshInterval = null;
@@ -237,6 +244,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		});
 
 		this.map.on('movestart', () => {
+			this.prepareRadarForMapInteraction();
 			const svgElement = this.svgOverlay.nativeElement;
 			const svg = d3.select(svgElement);
 
@@ -248,6 +256,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 
 			svg.selectAll('path').style('visibility', 'visible');
 			this.updatePaths();
+			this.prioritizeRadarForCurrentView();
 		});
 
 		this.map.on('pointermove', (evt) => {
@@ -808,6 +817,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			if (rainViewerVisible && this.radarAnimationAvailable) {
 				this.startRadarAnimation();
 			} else {
+				this.cancelRadarInteractionResume();
 				this.stopRadarAnimation();
 			}
 		}
@@ -833,6 +843,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	}
 
 	toggleRadarAnimation(): void {
+		this.cancelRadarInteractionResume();
 		if (this.radarAnimationPlaying) {
 			this.stopRadarAnimation();
 		} else {
@@ -841,11 +852,13 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	}
 
 	stepRadarFrame(direction: number): void {
+		this.cancelRadarInteractionResume();
 		this.stopRadarAnimation();
 		this.setRadarFrame(this.currentRadarFrameIndex + direction);
 	}
 
 	selectRadarFrame(index: number): void {
+		this.cancelRadarInteractionResume();
 		this.stopRadarAnimation();
 		this.setRadarFrame(index);
 	}
@@ -864,6 +877,73 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			this.radarAnimationInterval = null;
 		}
 		this.radarAnimationPlaying = false;
+	}
+
+	private prepareRadarForMapInteraction(): void {
+		if (!this.rainViewerVisible) return;
+
+		this.radarViewUpdating = true;
+		this.radarInteractionPending = true;
+		this.resumeRadarAfterInteraction = this.radarAnimationPlaying;
+		this.radarInteractionDeadline = Date.now() + 1_200;
+		if (this.radarAnimationPlaying) this.stopRadarAnimation();
+		if (this.radarInteractionResumeTimer) {
+			clearTimeout(this.radarInteractionResumeTimer);
+			this.radarInteractionResumeTimer = null;
+		}
+	}
+
+	private prioritizeRadarForCurrentView(): void {
+		if (!this.radarInteractionPending || !this.rainViewerVisible) return;
+		this.map.renderSync();
+		this.scheduleRadarInteractionCompletion();
+	}
+
+	private scheduleRadarInteractionCompletion(delay = 90): void {
+		if (this.radarInteractionResumeTimer) {
+			clearTimeout(this.radarInteractionResumeTimer);
+		}
+		this.radarInteractionResumeTimer = setTimeout(() => {
+			this.radarInteractionResumeTimer = null;
+			if (
+				this.radarTilesLoading > 0 &&
+				Date.now() < this.radarInteractionDeadline
+			) {
+				this.scheduleRadarInteractionCompletion(80);
+				return;
+			}
+
+			const shouldResume =
+				this.resumeRadarAfterInteraction && this.rainViewerVisible;
+			this.radarInteractionPending = false;
+			this.resumeRadarAfterInteraction = false;
+			this.radarViewUpdating = false;
+			if (shouldResume) this.startRadarAnimation();
+		}, delay);
+	}
+
+	private cancelRadarInteractionResume(): void {
+		if (this.radarInteractionResumeTimer) {
+			clearTimeout(this.radarInteractionResumeTimer);
+			this.radarInteractionResumeTimer = null;
+		}
+		this.radarInteractionPending = false;
+		this.resumeRadarAfterInteraction = false;
+		this.radarViewUpdating = false;
+	}
+
+	private trackRadarTileLoading(source: XYZ): void {
+		source.on('tileloadstart', () => {
+			this.radarTilesLoading++;
+		});
+		const settleTile = () => {
+			this.radarTilesLoading = Math.max(0, this.radarTilesLoading - 1);
+			if (this.radarInteractionPending && this.radarTilesLoading === 0) {
+				this.scheduleRadarInteractionCompletion(60);
+			}
+		};
+		source.on('tileloadend', settleTile);
+		source.on('tileloaderror', settleTile);
 	}
 
 	private setRadarFrame(index: number): void {
@@ -892,14 +972,16 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		const source = new XYZ({
 			url: url,
 			tileSize: 256,
-			transition: 180,
+			transition: 80,
 		});
+		this.trackRadarTileLoading(source);
 
 		const radarLayer = new TileLayer({
 			source: source,
 			opacity: 0.6,
 			visible: true,
-			preload: 1,
+			preload: 2,
+			cacheSize: 1024,
 		});
 		radarLayer.setZIndex(MapLayerZIndex.RADAR);
 
