@@ -26,7 +26,11 @@
 		<section class="layer-section">
 			<div class="section-heading">
 				<div><mat-icon aria-hidden="true">warning_amber</mat-icon><strong>Active alerts</strong></div>
-				<span class="section-tag">{{ eventLayers.length }}</span>
+				<span class="section-tag">{{ visibleEventCount }}/{{ eventLayers.length }}</span>
+			</div>
+			<div class="section-actions" *ngIf="eventLayers.length">
+				<button type="button" (click)="setAllEventsVisible(true)" [disabled]="visibleEventCount === eventLayers.length">Show all</button>
+				<button type="button" (click)="setAllEventsVisible(false)" [disabled]="visibleEventCount === 0">Hide all</button>
 			</div>
 			<ul class="control-list" *ngIf="eventLayers.length; else no_weather_events">
 				<li *ngFor="let layer of eventLayers; trackBy: trackByName">

@@ -59,6 +59,14 @@ export class SidebarComponent implements OnInit {
 		this.sidebarVisible = !this.sidebarVisible;
 	}
 
+	setAllEventsVisible(visible: boolean): void {
+		this.weatherLayerService.setAllEventLayersVisible(visible);
+	}
+
+	get visibleEventCount(): number {
+		return this.eventLayers.filter((layer) => layer.visible).length;
+	}
+
 	trackByName(_: number, layer: EventLayer | ForecastLayer): string {
 		return layer.name;
 	}

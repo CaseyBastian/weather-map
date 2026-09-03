@@ -61,6 +61,17 @@ enum EventSeverityZIndex {
 	UNKNOWN = 0,
 }
 
+const EventSeverityAppearance: Record<
+	keyof typeof EventSeverityZIndex,
+	{ fillOpacity: number; strokeWidth: number; lineDash?: number[] }
+> = {
+	UNKNOWN: { fillOpacity: 0.045, strokeWidth: 1, lineDash: [5, 4] },
+	MINOR: { fillOpacity: 0.06, strokeWidth: 1.2, lineDash: [3, 3] },
+	MODERATE: { fillOpacity: 0.09, strokeWidth: 1.4 },
+	SEVERE: { fillOpacity: 0.125, strokeWidth: 1.8 },
+	EXTREME: { fillOpacity: 0.17, strokeWidth: 2.2 },
+};
+
 const MapLayerZIndex = {
 	BASE: 0,
 	FORECAST: 10,
@@ -111,7 +122,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private markerVectorLayers: LayerGroup = new LayerGroup({ layers: [] });
 	private lastLocation: GeoPathLocation | undefined;
 	private hoveredFeature: FeatureLike | null = null;
+	private selectedFeature: FeatureLike | null = null;
 	private pointerMoveFrame: number | null = null;
+	private eventStyleCache = new Map<string, Style>();
+	private eventInteractionStyleCache = new Map<string, Style[]>();
 	private radarAnimationInterval: ReturnType<typeof setInterval> | null = null;
 	private radarPastFrameCount = 0;
 
@@ -147,6 +161,14 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			.pipe(takeUntil(this.destroy$))
 			.subscribe((radarLayers) => {
 				this.toggleRadarLayers(radarLayers);
+			});
+		this.infoPanelService.infoPanelVisible$
+			.pipe(takeUntil(this.destroy$))
+			.subscribe((visible) => {
+				if (!visible && this.selectedFeature) {
+					this.selectedFeature = null;
+					this.eventVectorLayer?.changed();
+				}
 			});
 
 	}
@@ -237,6 +259,13 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				}
 			});
 		});
+		this.map.getViewport().addEventListener('pointerleave', () => {
+			this.map.getTargetElement().style.cursor = '';
+			if (this.hoveredFeature) {
+				this.hoveredFeature = null;
+				this.eventVectorLayer?.changed();
+			}
+		});
 
 		this.map.on('click', (evt) => {
 			const feature = this.map.forEachFeatureAtPixel(
@@ -246,6 +275,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			if (!feature) {
 				this.infoPanelService.setInfoPanelVisibility(false);
 				this.hoveredFeature = null;
+				this.selectedFeature = null;
 				this.eventVectorLayer?.changed();
 				this.clearPaths();
 			}
@@ -255,8 +285,12 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				const { type, location } = properties;
 
 				if (type && type === 'marked-location') {
+					this.selectedFeature = null;
 					this.handleMarkerClick(location);
 				} else {
+					this.selectedFeature =
+						feature.get('@type') === 'wx:Alert' ? feature : null;
+					this.eventVectorLayer?.changed();
 					this.showInfoPanel(feature);
 				}
 			}
@@ -555,47 +589,81 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		if (this.eventVisibilityState.get(eventType) === false) return undefined;
 
 		const style = this.styleEvent(feature);
-		if (feature !== this.hoveredFeature) return style;
-
-		const outline = new Style({
-			zIndex: 99,
-			stroke: new Stroke({ color: '#0e0f11', width: 6 }),
-		});
-		const highlight = new Style({
-			zIndex: 100,
-			fill: new Fill({ color: style.getFill()?.getColor() }),
-			stroke: new Stroke({
-				color: style.getStroke()?.getColor(),
-				width: 3,
-			}),
-		});
-		return [outline, highlight];
+		if (feature === this.selectedFeature) {
+			return this.interactionEventStyle(feature, 'selected');
+		}
+		if (feature === this.hoveredFeature) {
+			return this.interactionEventStyle(feature, 'hovered');
+		}
+		return style;
 	}
 
 	private styleEvent(feature: FeatureLike): Style {
-		const properties = feature.getProperties();
-		const rawSeverity = String(properties['severity'] ?? '')
+		const severity = this.eventSeverity(feature);
+		const cached = this.eventStyleCache.get(severity);
+		if (cached) return cached;
+
+		const color = EventSeverityColorScale[severity];
+		const appearance = EventSeverityAppearance[severity];
+		const style = new Style({
+			zIndex: EventSeverityZIndex[severity],
+			fill: new Fill({
+				color: `rgba(${color}, ${appearance.fillOpacity})`,
+			}),
+			stroke: new Stroke({
+				color: `rgba(${color}, 0.88)`,
+				width: appearance.strokeWidth,
+				lineDash: appearance.lineDash,
+			}),
+		});
+		this.eventStyleCache.set(severity, style);
+		return style;
+	}
+
+	private eventSeverity(
+		feature: FeatureLike
+	): keyof typeof EventSeverityZIndex {
+		const rawSeverity = String(feature.get('severity') ?? '')
 			.trim()
 			.toUpperCase();
-		const severity = Object.prototype.hasOwnProperty.call(
+		return Object.prototype.hasOwnProperty.call(
 			EventSeverityZIndex,
 			rawSeverity
 		)
 			? (rawSeverity as keyof typeof EventSeverityZIndex)
 			: 'UNKNOWN';
-		const color = EventSeverityColorScale[severity];
-		const style = new Style({
-			zIndex: EventSeverityZIndex[severity],
-			fill: new Fill({
-				color: `rgba(${color}, 0.2)`,
-			}),
-			stroke: new Stroke({
-				color: `rgba(${color}, 1)`,
-				width: 2,
-			}),
-		});
+	}
 
-		return style;
+	private interactionEventStyle(
+		feature: FeatureLike,
+		state: 'hovered' | 'selected'
+	): Style[] {
+		const severity = this.eventSeverity(feature);
+		const key = `${severity}:${state}`;
+		const cached = this.eventInteractionStyleCache.get(key);
+		if (cached) return cached;
+
+		const color = EventSeverityColorScale[severity];
+		const selected = state === 'selected';
+		const styles = [
+			new Style({
+				zIndex: 99,
+				stroke: new Stroke({
+					color: selected ? '#c48414' : '#0e0f11',
+					width: selected ? 6 : 4,
+				}),
+			}),
+			new Style({
+				zIndex: 100,
+				fill: new Fill({ color: `rgba(${color}, ${selected ? 0.24 : 0.16})` }),
+				stroke: new Stroke({
+					color: `rgba(${color}, 1)`,
+					width: selected ? 2.8 : 2.2,
+				}),
+			}),
+		];
+		this.eventInteractionStyleCache.set(key, styles);
+		return styles;
 	}
 
 	private formatTime(dateTimeString: string): string {

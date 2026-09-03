@@ -347,6 +347,12 @@ export class WeatherLayersService {
 		}
 	}
 
+	setAllEventLayersVisible(visible: boolean): void {
+		this.eventLayersSource.next(
+			this.eventLayersSource.value.map((layer) => ({ ...layer, visible }))
+		);
+	}
+
 	getVisibleLayers(
 		SourceType: SourceLayerType
 	): ForecastLayer[] | EventLayer[] {

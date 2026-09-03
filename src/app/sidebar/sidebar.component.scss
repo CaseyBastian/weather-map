@@ -78,6 +78,11 @@ summary {
 
 .section-tag { padding: 3px 7px; border-radius: 999px; background: var(--accent-surface); color: var(--accent-strong); font-size: .65rem; font-weight: 800; }
 
+.section-actions { display: flex; gap: 6px; margin: -4px 0 7px; }
+.section-actions button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--ink-800); font-size: .63rem; font-weight: 700; cursor: pointer; }
+.section-actions button:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-surface); color: var(--accent-strong); }
+.section-actions button:disabled { opacity: .38; cursor: default; }
+
 .segmented-control {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
