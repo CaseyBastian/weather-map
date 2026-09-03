@@ -5,10 +5,22 @@
 			<strong>Atmos</strong>
 			<span>Weather intelligence</span>
 		</div>
-		<div class="live-status" role="status">
-			<span class="status-dot"></span>
-			Live NWS data
-		</div>
+		<button
+			*ngIf="refreshStatus$ | async as refreshStatus"
+			class="live-status"
+			type="button"
+			[class.is-refreshing]="refreshStatus.state === 'refreshing'"
+			[class.is-degraded]="refreshStatus.state === 'degraded'"
+			(click)="refreshData()"
+			[attr.aria-label]="refreshStatus.state === 'refreshing' ? 'Weather data is updating' : 'Refresh weather data now'"
+			title="Auto-refresh is on. Select to refresh now."
+		>
+			<span class="status-dot" aria-hidden="true"></span>
+			<span>
+				{{ refreshStatus.state === 'refreshing' ? 'Updating live data' : refreshStatus.state === 'degraded' ? 'Some data delayed' : refreshLabel(refreshStatus.lastUpdated) }}
+			</span>
+			<mat-icon aria-hidden="true">refresh</mat-icon>
+		</button>
 	</header>
 	<app-sidebar></app-sidebar>
 	<app-weather-map></app-weather-map>

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, lastValueFrom } from 'rxjs';
+import { BehaviorSubject, lastValueFrom, Subject } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 enum FeatureType {
@@ -177,6 +177,11 @@ export interface RainViewerApiData {
 	satellite: SatelliteData;
 }
 
+export interface WeatherRefreshStatus {
+	state: 'refreshing' | 'live' | 'degraded';
+	lastUpdated: Date | null;
+}
+
 const eventLayersArr: EventLayer[] = [];
 
 const radarLayersArr: EventLayer[] = [];
@@ -256,12 +261,44 @@ export class WeatherLayersService {
 	private radarLayersSource = new BehaviorSubject<EventLayer[]>(
 		radarLayersArr
 	);
+	private refreshStatusSource = new BehaviorSubject<WeatherRefreshStatus>({
+		state: 'refreshing',
+		lastUpdated: null,
+	});
+	private refreshRequestSource = new Subject<void>();
 
 	forecastLayers$ = this.forecastLayersSource.asObservable();
 	eventLayers$ = this.eventLayersSource.asObservable();
 	radarLayers$ = this.radarLayersSource.asObservable();
+	refreshStatus$ = this.refreshStatusSource.asObservable();
+	refreshRequests$ = this.refreshRequestSource.asObservable();
 
 	constructor(private http: HttpClient) {}
+
+	requestDataRefresh(): void {
+		this.refreshRequestSource.next();
+	}
+
+	beginDataRefresh(): void {
+		this.refreshStatusSource.next({
+			state: 'refreshing',
+			lastUpdated: this.refreshStatusSource.value.lastUpdated,
+		});
+	}
+
+	completeDataRefresh(degraded = false): void {
+		this.refreshStatusSource.next({
+			state: degraded ? 'degraded' : 'live',
+			lastUpdated: new Date(),
+		});
+	}
+
+	failDataRefresh(): void {
+		this.refreshStatusSource.next({
+			state: 'degraded',
+			lastUpdated: this.refreshStatusSource.value.lastUpdated,
+		});
+	}
 
 	hasEvents(): boolean {
 		return this.eventLayersSource.value.length > 0;
@@ -269,6 +306,10 @@ export class WeatherLayersService {
 
 	getEventLayers(): EventLayer[] {
 		return this.eventLayersSource.value;
+	}
+
+	getForecastLayers(): ForecastLayer[] {
+		return this.forecastLayersSource.value;
 	}
 
 	addRadarsToSource(radarName: string, visible: boolean): void {

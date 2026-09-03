@@ -127,6 +127,14 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	private eventStyleCache = new Map<string, Style>();
 	private eventInteractionStyleCache = new Map<string, Style[]>();
 	private radarAnimationInterval: ReturnType<typeof setInterval> | null = null;
+	private dataRefreshInterval: ReturnType<typeof setInterval> | null = null;
+	private refreshInFlight = false;
+	private lastAlertRefreshAt = 0;
+	private lastRadarRefreshAt = 0;
+	private lastForecastRefreshAt = 0;
+	private readonly alertRefreshMs = 90_000;
+	private readonly radarRefreshMs = 5 * 60_000;
+	private readonly forecastRefreshMs = 30 * 60_000;
 	private radarPastFrameCount = 0;
 
 	radarFrames: Array<{ time: number; path: string }> = [];
@@ -145,7 +153,7 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	ngAfterViewInit(): void {
 		this.initializeMap();
 
-		this.loadLayers();
+		void this.loadLayers();
 
 		this.weatherLayersService.eventLayers$
 			.pipe(takeUntil(this.destroy$))
@@ -170,7 +178,9 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 					this.eventVectorLayer?.changed();
 				}
 			});
-
+		this.weatherLayersService.refreshRequests$
+			.pipe(takeUntil(this.destroy$))
+			.subscribe(() => void this.refreshWeatherData(true));
 	}
 
 	ngOnDestroy(): void {
@@ -178,6 +188,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			cancelAnimationFrame(this.pointerMoveFrame);
 		}
 		this.stopRadarAnimation();
+		if (this.dataRefreshInterval) {
+			clearInterval(this.dataRefreshInterval);
+			this.dataRefreshInterval = null;
+		}
 
 		this.destroy$.next();
 		this.destroy$.complete();
@@ -309,6 +323,14 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		hourlyForecast: any,
 		visible: boolean = true
 	): void {
+		let vectorLayer = this.forecastVectorLayerMap.get(layerName);
+		if (vectorLayer) {
+			vectorLayer
+				.getSource()
+				?.getFeatures()
+				.forEach((feature) => this.allLocationsSource.removeFeature(feature));
+		}
+
 		const vectorSource = new VectorSource({
 			features: features.map((feature) => {
 				const extent = feature.getGeometry()?.getExtent();
@@ -339,9 +361,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			}),
 		});
 
-		let vectorLayer = this.forecastVectorLayerMap.get(layerName);
-
 		if (vectorLayer) {
+			vectorLayer.setSource(vectorSource);
 			vectorLayer.setVisible(visible);
 		} else {
 			vectorLayer = new VectorLayer({
@@ -427,14 +448,11 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	}
 
 	private async loadForecastLayers(): Promise<void> {
-		const visibleLayers: ForecastLayer[] =
-			this.weatherLayersService.getVisibleLayers(
-				SourceLayerType.FORECAST
-			) as ForecastLayer[];
+		const forecastLayers = this.weatherLayersService.getForecastLayers();
 		const batchSize = 4;
 
-		for (let i = 0; i < visibleLayers.length; i += batchSize) {
-			const layerBatch = visibleLayers.slice(i, i + batchSize);
+		for (let i = 0; i < forecastLayers.length; i += batchSize) {
+			const layerBatch = forecastLayers.slice(i, i + batchSize);
 
 			await Promise.allSettled(
 				layerBatch.map(async (visibleLayer) => {
@@ -473,6 +491,8 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 				})
 			);
 		}
+
+		this.recalculateImpactedLocations();
 	}
 
 	private toggleIconVisibility(layerName: string, visible: boolean): void {
@@ -515,10 +535,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			await this.weatherLayersService.fetchEventData();
 
 		this.weatherLayersService.addEventsToSource(eventData);
-		this.createEventLayer(eventData);
+		this.createOrUpdateEventLayer(eventData);
 	}
 
-	private createEventLayer(eventData: AlertApiResponse): void {
+	private createOrUpdateEventLayer(eventData: AlertApiResponse): void {
 		const events = this.weatherLayersService.getEventLayers();
 		events.forEach((event) =>
 			this.eventVisibilityState.set(event.name, event.visible)
@@ -528,19 +548,57 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 			featureProjection: projection,
 		});
 
+		this.resetImpactedLocations();
 		features.forEach((feature) => this.findImpactedLocations(feature));
 
-		const vectorSource = new VectorSource({
-			features: features,
-		});
+		if (this.eventVectorLayer) {
+			const selectedAlertId = this.selectedFeature?.get('id');
+			this.hoveredFeature = null;
+			const source = this.eventVectorLayer.getSource();
+			source?.clear(true);
+			source?.addFeatures(features);
+			if (selectedAlertId) {
+				const refreshedSelection =
+					features.find((feature) => feature.get('id') === selectedAlertId) ?? null;
+				this.selectedFeature = refreshedSelection;
+				if (refreshedSelection) {
+					this.infoPanelService.setInfoPanelData(
+						refreshedSelection.getProperties()
+					);
+				} else {
+					this.infoPanelService.setInfoPanelVisibility(false);
+				}
+			}
+			this.eventVectorLayer.changed();
+		} else {
+			const vectorSource = new VectorSource({ features });
+			this.eventVectorLayer = new VectorLayer({
+				source: vectorSource,
+				visible: true,
+				style: (feature) => this.getEventStyle(feature),
+			});
+			this.eventVectorLayer.setZIndex(MapLayerZIndex.ALERTS);
+			this.map.addLayer(this.eventVectorLayer);
+		}
+	}
 
-		this.eventVectorLayer = new VectorLayer({
-			source: vectorSource,
-			visible: true,
-			style: (feature) => this.getEventStyle(feature),
+	private resetImpactedLocations(): void {
+		this.impactedLocations.clear();
+		this.allLocationsSource.getFeatures().forEach((location) => {
+			location.setProperties({
+				...location.getProperties(),
+				impacted: false,
+				impactingEvents: [],
+			});
 		});
-		this.eventVectorLayer.setZIndex(MapLayerZIndex.ALERTS);
-		this.map.addLayer(this.eventVectorLayer);
+	}
+
+	private recalculateImpactedLocations(): void {
+		this.resetImpactedLocations();
+		this.eventVectorLayer
+			?.getSource()
+			?.getFeatures()
+			.forEach((feature) => this.findImpactedLocations(feature));
 	}
 
 	private findImpactedLocations(feature: Feature<Geometry>) {
@@ -825,16 +883,10 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 	}
 
 	private async addRVRadarLayer(): Promise<void> {
-		const rvAPIData: RainViewerApiData =
-			await this.weatherLayersService.fetchRainViewerAPI();
-		const pastFrames = rvAPIData.radar.past.slice(-8);
-		const nowcastFrames = rvAPIData.radar.nowcast.slice(0, 3);
-		this.radarFrames = [...pastFrames, ...nowcastFrames];
-		this.radarPastFrameCount = pastFrames.length;
-		this.radarAnimationAvailable = this.radarFrames.length > 1;
-		this.currentRadarFrameIndex = 0;
-		const firstFrame = this.radarFrames[0];
-		if (!firstFrame) return;
+		await this.refreshRainViewerFrames();
+		if (!this.radarFrames.length) return;
+
+		const firstFrame = this.radarFrames[this.currentRadarFrameIndex];
 		const url = `${environment.rvTileCacheUrl}${firstFrame.path}/256/{z}/{x}/{y}/1/0_0.png`;
 
 		const source = new XYZ({
@@ -856,6 +908,32 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		this.radarVisibilityState.set(RadarLayerNames.RV, true);
 		this.weatherLayersService.addRadarsToSource(RadarLayerNames.RV, true);
 		this.startRadarAnimation();
+	}
+
+	private async refreshRainViewerFrames(): Promise<void> {
+		const previousFramePath =
+			this.radarFrames[this.currentRadarFrameIndex]?.path;
+		const rvAPIData: RainViewerApiData =
+			await this.weatherLayersService.fetchRainViewerAPI();
+		const pastFrames = rvAPIData.radar.past.slice(-8);
+		const nowcastFrames = rvAPIData.radar.nowcast.slice(0, 3);
+		const nextFrames = [...pastFrames, ...nowcastFrames];
+		if (!nextFrames.length) return;
+
+		this.radarFrames = nextFrames;
+		this.radarPastFrameCount = pastFrames.length;
+		this.radarAnimationAvailable = this.radarFrames.length > 1;
+		const preservedIndex = previousFramePath
+			? this.radarFrames.findIndex((frame) => frame.path === previousFramePath)
+			: -1;
+		this.currentRadarFrameIndex =
+			preservedIndex >= 0 ? preservedIndex : Math.max(0, pastFrames.length - 1);
+
+		const existingLayer = this.radarTileLayerMap.get(RadarLayerNames.RV);
+		const existingSource = existingLayer?.getSource();
+		if (existingSource instanceof XYZ) {
+			this.setRadarFrame(this.currentRadarFrameIndex);
+		}
 	}
 
 	private addNOAARadarLayer(): void {
@@ -1055,12 +1133,118 @@ export class WeatherMapComponent implements AfterViewInit, OnDestroy {
 		this.lastLocation = undefined;
 	}
 
-	private async loadLayers() {
+	private async loadLayers(): Promise<void> {
+		this.refreshInFlight = true;
+		this.weatherLayersService.beginDataRefresh();
 		this.addLocationMarkers();
 		this.addNOAARadarLayer();
-		const rainViewerPromise = this.addRVRadarLayer();
-		await this.loadForecastLayers();
-		await Promise.allSettled([this.loadEventLayers(), rainViewerPromise]);
+
+		let successfulFeeds = 0;
+		let failedFeeds = 0;
+		const forecastResult = await Promise.allSettled([
+			this.loadForecastLayers(),
+		]);
+		if (forecastResult[0].status === 'fulfilled') {
+			this.lastForecastRefreshAt = Date.now();
+			successfulFeeds++;
+		} else {
+			failedFeeds++;
+		}
+
+		const liveResults = await Promise.allSettled([
+			this.loadEventLayers(),
+			this.addRVRadarLayer(),
+		]);
+		if (liveResults[0].status === 'fulfilled') {
+			this.lastAlertRefreshAt = Date.now();
+			successfulFeeds++;
+		} else {
+			failedFeeds++;
+		}
+		if (liveResults[1].status === 'fulfilled') {
+			this.lastRadarRefreshAt = Date.now();
+			successfulFeeds++;
+		} else {
+			failedFeeds++;
+		}
+
+		if (successfulFeeds > 0) {
+			this.weatherLayersService.completeDataRefresh(failedFeeds > 0);
+		} else {
+			this.weatherLayersService.failDataRefresh();
+		}
+
+		this.refreshInFlight = false;
+		this.startAutoRefresh();
+	}
+
+	private startAutoRefresh(): void {
+		if (this.dataRefreshInterval) return;
+		this.dataRefreshInterval = setInterval(
+			() => void this.refreshWeatherData(),
+			30_000
+		);
+	}
+
+	private async refreshWeatherData(forceAll = false): Promise<void> {
+		if (this.refreshInFlight) return;
+
+		const now = Date.now();
+		const refreshForecast =
+			forceAll || now - this.lastForecastRefreshAt >= this.forecastRefreshMs;
+		const refreshAlerts =
+			forceAll || now - this.lastAlertRefreshAt >= this.alertRefreshMs;
+		const refreshRadar =
+			forceAll || now - this.lastRadarRefreshAt >= this.radarRefreshMs;
+		if (!refreshForecast && !refreshAlerts && !refreshRadar) return;
+
+		this.refreshInFlight = true;
+		this.weatherLayersService.beginDataRefresh();
+		let successfulFeeds = 0;
+		let failedFeeds = 0;
+
+		if (refreshForecast) {
+			try {
+				await this.loadForecastLayers();
+				this.lastForecastRefreshAt = Date.now();
+				successfulFeeds++;
+			} catch {
+				failedFeeds++;
+			}
+		}
+
+		const tasks: Array<{ feed: 'alerts' | 'radar'; promise: Promise<void> }> = [];
+		if (refreshAlerts) {
+			tasks.push({ feed: 'alerts', promise: this.loadEventLayers() });
+		}
+		if (refreshRadar) {
+			tasks.push({ feed: 'radar', promise: this.refreshRainViewerFrames() });
+		}
+
+		const results = await Promise.allSettled(tasks.map((task) => task.promise));
+		results.forEach((result, index) => {
+			if (result.status === 'fulfilled') {
+				if (tasks[index].feed === 'alerts') this.lastAlertRefreshAt = Date.now();
+				if (tasks[index].feed === 'radar') this.lastRadarRefreshAt = Date.now();
+				successfulFeeds++;
+			} else {
+				failedFeeds++;
+			}
+		});
+
+		if (successfulFeeds > 0) {
+			this.weatherLayersService.completeDataRefresh(failedFeeds > 0);
+		} else {
+			this.weatherLayersService.failDataRefresh();
+		}
+		this.refreshInFlight = false;
+	}
+
+	@HostListener('document:visibilitychange')
+	onDocumentVisibilityChange(): void {
+		if (document.visibilityState === 'visible') {
+			void this.refreshWeatherData();
+		}
 	}
 
 	@HostListener('window:resize', ['$event'])
